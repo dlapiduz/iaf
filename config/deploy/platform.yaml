@@ -1,0 +1,145 @@
+---
+apiVersion: v1
+kind: ServiceAccount
+metadata:
+  name: iaf-platform
+  namespace: iaf-system
+---
+apiVersion: rbac.authorization.k8s.io/v1
+kind: ClusterRoleBinding
+metadata:
+  name: iaf-platform-binding
+roleRef:
+  apiGroup: rbac.authorization.k8s.io
+  kind: ClusterRole
+  name: iaf-controller-role
+subjects:
+  - kind: ServiceAccount
+    name: iaf-platform
+    namespace: iaf-system
+---
+apiVersion: v1
+kind: PersistentVolumeClaim
+metadata:
+  name: iaf-sources
+  namespace: iaf-system
+spec:
+  accessModes:
+    - ReadWriteOnce
+  resources:
+    requests:
+      storage: 1Gi
+---
+# IAF Controller
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  name: iaf-controller
+  namespace: iaf-system
+  labels:
+    app: iaf-controller
+spec:
+  replicas: 1
+  selector:
+    matchLabels:
+      app: iaf-controller
+  template:
+    metadata:
+      labels:
+        app: iaf-controller
+    spec:
+      serviceAccountName: iaf-platform
+      containers:
+        - name: controller
+          image: iaf-platform:latest
+          imagePullPolicy: Never
+          command: ["/usr/local/bin/controller"]
+          env:
+            - name: IAF_NAMESPACE
+              value: "iaf-apps"
+            - name: IAF_CLUSTER_BUILDER
+              value: "iaf-cluster-builder"
+            - name: IAF_REGISTRY_PREFIX
+              value: "registry.iaf-system.svc.cluster.local:5000/iaf"
+            - name: IAF_BASE_DOMAIN
+              value: "localhost"
+---
+# IAF API Server (with MCP endpoint)
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  name: iaf-apiserver
+  namespace: iaf-system
+  labels:
+    app: iaf-apiserver
+spec:
+  replicas: 1
+  selector:
+    matchLabels:
+      app: iaf-apiserver
+  template:
+    metadata:
+      labels:
+        app: iaf-apiserver
+    spec:
+      serviceAccountName: iaf-platform
+      containers:
+        - name: apiserver
+          image: iaf-platform:latest
+          imagePullPolicy: Never
+          command: ["/usr/local/bin/apiserver"]
+          ports:
+            - containerPort: 8080
+          env:
+            - name: IAF_API_PORT
+              value: "8080"
+            - name: IAF_API_KEY
+              value: "iaf-dev-key"
+            - name: IAF_NAMESPACE
+              value: "iaf-apps"
+            - name: IAF_CLUSTER_BUILDER
+              value: "iaf-cluster-builder"
+            - name: IAF_REGISTRY_PREFIX
+              value: "registry.iaf-system.svc.cluster.local:5000/iaf"
+            - name: IAF_BASE_DOMAIN
+              value: "localhost"
+            - name: IAF_SOURCE_STORE_DIR
+              value: "/data/sources"
+            - name: IAF_SOURCE_STORE_URL
+              value: "http://iaf-apiserver.iaf-system.svc.cluster.local:8080"
+          volumeMounts:
+            - name: sources
+              mountPath: /data/sources
+      volumes:
+        - name: sources
+          persistentVolumeClaim:
+            claimName: iaf-sources
+---
+apiVersion: v1
+kind: Service
+metadata:
+  name: iaf-apiserver
+  namespace: iaf-system
+spec:
+  selector:
+    app: iaf-apiserver
+  ports:
+    - name: http
+      port: 8080
+      targetPort: 8080
+  type: ClusterIP
+---
+apiVersion: traefik.io/v1alpha1
+kind: IngressRoute
+metadata:
+  name: iaf-apiserver
+  namespace: iaf-system
+spec:
+  entryPoints:
+    - web
+  routes:
+    - match: Host(`iaf.localhost`)
+      kind: Rule
+      services:
+        - name: iaf-apiserver
+          port: 8080

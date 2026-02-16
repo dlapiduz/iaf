@@ -1,0 +1,10 @@
+apiVersion: iaf.io/v1alpha1
+kind: Application
+metadata:
+  name: nginx-sample
+  namespace: iaf-apps
+spec:
+  image: "nginx:latest"
+  port: 80
+  replicas: 1
+  host: "nginx-sample.localhost"

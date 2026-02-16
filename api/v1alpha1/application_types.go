@@ -1,0 +1,128 @@
+package v1alpha1
+
+import (
+	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
+)
+
+// ApplicationSpec defines the desired state of an Application.
+type ApplicationSpec struct {
+	// Image is a pre-built container image reference (e.g., "nginx:latest").
+	// Mutually exclusive with Git and Blob.
+	// +optional
+	Image string `json:"image,omitempty"`
+
+	// Git specifies a git repository to build from using kpack.
+	// Mutually exclusive with Image and Blob.
+	// +optional
+	Git *GitSource `json:"git,omitempty"`
+
+	// Blob is a URL to a source code archive (tarball) to build from using kpack.
+	// Set by the platform when source code is uploaded.
+	// Mutually exclusive with Image and Git.
+	// +optional
+	Blob string `json:"blob,omitempty"`
+
+	// Port is the container port the application listens on.
+	// +kubebuilder:default=8080
+	// +optional
+	Port int32 `json:"port,omitempty"`
+
+	// Replicas is the desired number of pod replicas.
+	// +kubebuilder:default=1
+	// +optional
+	Replicas int32 `json:"replicas,omitempty"`
+
+	// Env specifies environment variables for the application container.
+	// +optional
+	Env []EnvVar `json:"env,omitempty"`
+
+	// Host is the hostname for routing. Defaults to "{name}.localhost".
+	// +optional
+	Host string `json:"host,omitempty"`
+}
+
+// GitSource specifies a git repository source for building.
+type GitSource struct {
+	// URL is the git repository URL.
+	URL string `json:"url"`
+
+	// Revision is the branch, tag, or commit to build. Defaults to "main".
+	// +kubebuilder:default="main"
+	// +optional
+	Revision string `json:"revision,omitempty"`
+}
+
+// EnvVar represents an environment variable.
+type EnvVar struct {
+	// Name of the environment variable.
+	Name string `json:"name"`
+	// Value of the environment variable.
+	Value string `json:"value"`
+}
+
+// ApplicationPhase represents the current lifecycle phase of an Application.
+type ApplicationPhase string
+
+const (
+	ApplicationPhasePending   ApplicationPhase = "Pending"
+	ApplicationPhaseBuilding  ApplicationPhase = "Building"
+	ApplicationPhaseDeploying ApplicationPhase = "Deploying"
+	ApplicationPhaseRunning   ApplicationPhase = "Running"
+	ApplicationPhaseFailed    ApplicationPhase = "Failed"
+)
+
+// ApplicationStatus defines the observed state of an Application.
+type ApplicationStatus struct {
+	// Phase is the current lifecycle phase of the application.
+	// +optional
+	Phase ApplicationPhase `json:"phase,omitempty"`
+
+	// URL is the routable URL for the application.
+	// +optional
+	URL string `json:"url,omitempty"`
+
+	// LatestImage is the most recently built or provided container image.
+	// +optional
+	LatestImage string `json:"latestImage,omitempty"`
+
+	// BuildStatus is the kpack build status: Building, Succeeded, or Failed.
+	// +optional
+	BuildStatus string `json:"buildStatus,omitempty"`
+
+	// AvailableReplicas is the number of available pod replicas.
+	// +optional
+	AvailableReplicas int32 `json:"availableReplicas,omitempty"`
+
+	// Conditions represent the latest available observations of the application's state.
+	// +optional
+	Conditions []metav1.Condition `json:"conditions,omitempty"`
+}
+
+// +kubebuilder:object:root=true
+// +kubebuilder:subresource:status
+// +kubebuilder:printcolumn:name="Phase",type=string,JSONPath=`.status.phase`
+// +kubebuilder:printcolumn:name="URL",type=string,JSONPath=`.status.url`
+// +kubebuilder:printcolumn:name="Image",type=string,JSONPath=`.status.latestImage`
+// +kubebuilder:printcolumn:name="Age",type=date,JSONPath=`.metadata.creationTimestamp`
+
+// Application is the Schema for the applications API.
+type Application struct {
+	metav1.TypeMeta   `json:",inline"`
+	metav1.ObjectMeta `json:"metadata,omitempty"`
+
+	Spec   ApplicationSpec   `json:"spec,omitempty"`
+	Status ApplicationStatus `json:"status,omitempty"`
+}
+
+// +kubebuilder:object:root=true
+
+// ApplicationList contains a list of Application.
+type ApplicationList struct {
+	metav1.TypeMeta `json:",inline"`
+	metav1.ListMeta `json:"metadata,omitempty"`
+	Items           []Application `json:"items"`
+}
+
+func init() {
+	SchemeBuilder.Register(&Application{}, &ApplicationList{})
+}

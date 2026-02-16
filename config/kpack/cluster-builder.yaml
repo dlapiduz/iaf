@@ -1,0 +1,26 @@
+apiVersion: kpack.io/v1alpha2
+kind: ClusterBuilder
+metadata:
+  name: iaf-cluster-builder
+spec:
+  tag: registry.iaf-system.svc.cluster.local:5000/iaf/builder
+  serviceAccountRef:
+    name: iaf-kpack-sa
+    namespace: iaf-apps
+  stack:
+    name: iaf-cluster-stack
+    kind: ClusterStack
+  store:
+    name: iaf-cluster-store
+    kind: ClusterStore
+  order:
+    - group:
+        - id: paketo-buildpacks/go
+    - group:
+        - id: paketo-buildpacks/nodejs
+    - group:
+        - id: paketo-buildpacks/python
+    - group:
+        - id: paketo-buildpacks/java
+    - group:
+        - id: paketo-buildpacks/ruby

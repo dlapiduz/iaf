@@ -1,0 +1,14 @@
+apiVersion: iaf.io/v1alpha1
+kind: Application
+metadata:
+  name: nodejs-sample
+  namespace: iaf-apps
+spec:
+  git:
+    url: "https://github.com/paketo-buildpacks/samples"
+    revision: "main"
+  port: 8080
+  replicas: 1
+  env:
+    - name: NODE_ENV
+      value: production

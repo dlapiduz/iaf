@@ -1,0 +1,11 @@
+apiVersion: kpack.io/v1alpha2
+kind: ClusterStore
+metadata:
+  name: iaf-cluster-store
+spec:
+  sources:
+    - image: docker.io/paketobuildpacks/go
+    - image: docker.io/paketobuildpacks/nodejs
+    - image: docker.io/paketobuildpacks/python
+    - image: docker.io/paketobuildpacks/java
+    - image: docker.io/paketobuildpacks/ruby
