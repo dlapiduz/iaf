@@ -12,6 +12,7 @@ import (
 	iafmcp "github.com/dlapiduz/iaf/internal/mcp"
 	"github.com/dlapiduz/iaf/internal/sourcestore"
 	gomcp "github.com/modelcontextprotocol/go-sdk/mcp"
+	"k8s.io/client-go/kubernetes"
 )
 
 func main() {
@@ -43,7 +44,23 @@ func main() {
 		os.Exit(1)
 	}
 
-	server := iafmcp.NewServer(k8sClient, sessions, store, cfg.BaseDomain)
+	// Attempt to create a kubernetes clientset for log streaming.
+	// Failure is a soft degradation — all other tools continue to work.
+	var clientset kubernetes.Interface
+	restCfg, err := k8s.GetConfig(cfg.KubeConfig)
+	if err != nil {
+		logger.Warn("log streaming: degraded (could not get REST config)", "error", err)
+	} else {
+		cs, err := kubernetes.NewForConfig(restCfg)
+		if err != nil {
+			logger.Warn("log streaming: degraded (could not create clientset)", "error", err)
+		} else {
+			clientset = cs
+			logger.Info("log streaming: enabled")
+		}
+	}
+
+	server := iafmcp.NewServer(k8sClient, sessions, store, cfg.BaseDomain, clientset)
 
 	logger.Info("starting MCP server", "transport", cfg.MCPTransport)
 
