@@ -47,10 +47,15 @@ func (s *Store) StoreFiles(namespace, appName string, files map[string]string) (
 	tarWriter := tar.NewWriter(gzWriter)
 
 	for path, content := range files {
-		// Sanitize path to prevent directory traversal
+		// Sanitize path to prevent directory traversal.
+		// Use join-and-confirm approach: verify the resolved path stays inside appDir.
 		cleanPath := filepath.Clean(path)
-		if strings.HasPrefix(cleanPath, "..") || filepath.IsAbs(cleanPath) {
-			return "", fmt.Errorf("invalid file path: %s", path)
+		if filepath.IsAbs(cleanPath) {
+			return "", fmt.Errorf("invalid file path %q: must not be absolute", path)
+		}
+		fullPath := filepath.Join(appDir, cleanPath)
+		if !strings.HasPrefix(filepath.Clean(fullPath)+"/", filepath.Clean(appDir)+"/") {
+			return "", fmt.Errorf("invalid file path %q: must not escape upload directory", path)
 		}
 
 		header := &tar.Header{
