@@ -6,6 +6,7 @@ import (
 	"fmt"
 
 	iafv1alpha1 "github.com/dlapiduz/iaf/api/v1alpha1"
+	"github.com/dlapiduz/iaf/internal/validation"
 	gomcp "github.com/modelcontextprotocol/go-sdk/mcp"
 	apierrors "k8s.io/apimachinery/pkg/api/errors"
 	"k8s.io/apimachinery/pkg/types"
@@ -25,8 +26,8 @@ func RegisterAppStatus(server *gomcp.Server, deps *Dependencies) {
 		if err != nil {
 			return nil, nil, err
 		}
-		if input.Name == "" {
-			return nil, nil, fmt.Errorf("name is required")
+		if err := validation.ValidateAppName(input.Name); err != nil {
+			return nil, nil, err
 		}
 
 		var app iafv1alpha1.Application
@@ -57,7 +58,7 @@ func RegisterAppStatus(server *gomcp.Server, deps *Dependencies) {
 			result["gitUrl"] = app.Spec.Git.URL
 			result["gitRevision"] = app.Spec.Git.Revision
 		} else if app.Spec.Blob != "" {
-			result["sourceType"] = "blob"
+			result["sourceType"] = "code"
 		}
 
 		if len(app.Status.Conditions) > 0 {

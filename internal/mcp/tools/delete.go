@@ -6,6 +6,7 @@ import (
 	"fmt"
 
 	iafv1alpha1 "github.com/dlapiduz/iaf/api/v1alpha1"
+	"github.com/dlapiduz/iaf/internal/validation"
 	gomcp "github.com/modelcontextprotocol/go-sdk/mcp"
 	apierrors "k8s.io/apimachinery/pkg/api/errors"
 	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
@@ -25,8 +26,8 @@ func RegisterDeleteApp(server *gomcp.Server, deps *Dependencies) {
 		if err != nil {
 			return nil, nil, err
 		}
-		if input.Name == "" {
-			return nil, nil, fmt.Errorf("name is required")
+		if err := validation.ValidateAppName(input.Name); err != nil {
+			return nil, nil, err
 		}
 
 		app := &iafv1alpha1.Application{
