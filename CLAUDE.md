@@ -1,5 +1,25 @@
 # IAF - Intelligent Application Fabric
 
+## Platform Vision
+
+IAF is an **agentic application platform** — infrastructure purpose-built for AI agents to deploy, run, and manage applications on Kubernetes.
+
+**Key design principles every contributor must understand:**
+
+- **Agentic-first**: The primary users are AI agents, not humans. APIs, tools, and error messages must be unambiguous, self-describing, and recoverable without human intervention.
+- **Short- and long-lived workloads**: IAF must support both ephemeral apps (a quick demo, a one-off task) and persistent production services. Lifecycle management, cleanup, and resource limits matter.
+- **Multi-tenancy at every layer**: Multiple agents (and the humans/organizations behind them) share the same cluster. Namespace isolation, RBAC, and resource quotas are not optional features — they are core invariants.
+- **Enterprise-ready security**: IAF will be used by small teams and large organizations alike. Security decisions made now are hard to undo. Every feature must be designed with the assumption that a compromised or misbehaving agent must not be able to affect other tenants.
+- **Shared resources, clear boundaries**: Agents share the cluster, the registry, the ingress controller, and the build system. Any feature that touches shared infrastructure must account for fair use, rate limiting, and blast radius.
+
+**Security non-negotiables:**
+1. Agent sessions are isolated in their own Kubernetes namespace — never bypass this.
+2. No cross-namespace access to secrets, services, or storage.
+3. All API and MCP endpoints require authentication — never add unauthenticated routes that touch cluster state.
+4. Containers run as non-root. Never relax this in platform-managed workloads.
+5. User-supplied values (app names, env vars, file paths, image references) must be validated and sanitized before use in Kubernetes objects or shell commands.
+6. Least privilege: the platform's own service account should only have the permissions it needs — review RBAC before adding new verbs or resources.
+
 ## Build & Test Commands
 - `make build` — Build all three binaries (apiserver, mcpserver, controller)
 - `make test` or `go test ./... -v` — Run all tests

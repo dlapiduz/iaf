@@ -25,5 +25,8 @@ release-*.yaml
 kubeconfig*
 sessions.json
 
-# Claude Code
-.claude/
+# Claude Code — ignore local settings, but commit shared roles and agents
+.claude/settings.json
+.claude/settings.local.json
+.claude/todos/
+.claude/projects/
