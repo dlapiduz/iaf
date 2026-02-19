@@ -72,6 +72,17 @@ setup-local:
 setup-kpack:
 	bash scripts/setup-kpack.sh
 
+##@ Deploy
+
+.PHONY: deploy-local
+deploy-local: manifests
+	nerdctl build --namespace k8s.io -t iaf-platform:latest .
+	kubectl apply -f config/crd/bases/
+	kubectl apply -f config/rbac/
+	kubectl apply -f config/deploy/platform.yaml
+	kubectl rollout restart deployment/iaf-controller -n iaf-system
+	kubectl rollout restart deployment/iaf-apiserver -n iaf-system
+
 ##@ Misc
 
 .PHONY: fmt

@@ -12,20 +12,25 @@ import (
 )
 
 type AppStatusInput struct {
-	Name string `json:"name" jsonschema:"application name"`
+	SessionID string `json:"session_id" jsonschema:"required - session ID returned by the register tool"`
+	Name      string `json:"name" jsonschema:"required - application name to check status for"`
 }
 
 func RegisterAppStatus(server *gomcp.Server, deps *Dependencies) {
 	gomcp.AddTool(server, &gomcp.Tool{
 		Name:        "app_status",
-		Description: "Get the current status of a deployed application, including phase, URL, build status, and replica count.",
+		Description: "Check the current status of an application — phase (Pending/Building/Deploying/Running/Failed), URL, build progress, and replica count. Requires session_id from the register tool and the application name. Use this after push_code or deploy_app to monitor progress.",
 	}, func(ctx context.Context, req *gomcp.CallToolRequest, input AppStatusInput) (*gomcp.CallToolResult, any, error) {
+		namespace, err := deps.ResolveNamespace(input.SessionID)
+		if err != nil {
+			return nil, nil, err
+		}
 		if input.Name == "" {
 			return nil, nil, fmt.Errorf("name is required")
 		}
 
 		var app iafv1alpha1.Application
-		if err := deps.Client.Get(ctx, types.NamespacedName{Name: input.Name, Namespace: deps.Namespace}, &app); err != nil {
+		if err := deps.Client.Get(ctx, types.NamespacedName{Name: input.Name, Namespace: namespace}, &app); err != nil {
 			if apierrors.IsNotFound(err) {
 				return nil, nil, fmt.Errorf("application %q not found", input.Name)
 			}

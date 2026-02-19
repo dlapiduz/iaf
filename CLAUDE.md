@@ -28,6 +28,19 @@
   ```
 - Run `make test` before considering any implementation complete.
 
+## Local Deployment
+After making code changes, deploy to the local Kubernetes cluster (Rancher Desktop):
+- `make deploy-local` — Build the Docker image, apply CRDs/RBAC, deploy to K8s, and restart pods
+- `make setup-local` — One-time setup: creates namespaces, registry, CRDs, RBAC, and kpack SA
+- `make setup-kpack` — One-time setup: installs kpack and configures cluster builders
+- `make install-crds` — Apply only CRD changes (faster than full deploy)
+
+The `deploy-local` target builds the image via `nerdctl` into the `k8s.io` namespace (so K8s can pull with `imagePullPolicy: Never`), applies all manifests, and restarts the controller and apiserver deployments.
+
+The platform is accessible at:
+- API/MCP: `http://iaf.localhost` (via Traefik IngressRoute)
+- Auth: `Authorization: Bearer iaf-dev-key` (default dev token)
+
 ## Project Structure
 - `api/v1alpha1/` — CRD types (Application)
 - `cmd/` — Binary entry points (apiserver, mcpserver, controller)
@@ -35,6 +48,7 @@
 - `internal/mcp/prompts/` — MCP prompt implementations (deploy-guide, language-guide)
 - `internal/mcp/resources/` — MCP resource implementations (platform-info, language-spec, application-spec)
 - `internal/mcp/server.go` — MCP server wiring (registers all tools, prompts, resources)
+- `internal/auth/` — Session management and namespace provisioning
 - `internal/controller/` — Kubernetes controller
 - `internal/api/` — REST API handlers
 - `internal/sourcestore/` — Source code tarball storage

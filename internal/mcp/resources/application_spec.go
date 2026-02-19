@@ -104,7 +104,7 @@ func RegisterApplicationSpec(server *gomcp.Server, deps *tools.Dependencies) {
 			"constraints": map[string]any{
 				"name":      "Must be a valid DNS label: lowercase alphanumeric and hyphens, 1-63 characters.",
 				"source":    "Exactly one of image, git, or blob must be specified.",
-				"namespace": deps.Namespace,
+				"namespace": "Per-session, assigned by the register tool.",
 			},
 		}
 

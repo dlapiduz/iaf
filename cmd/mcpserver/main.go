@@ -4,7 +4,9 @@ import (
 	"context"
 	"log/slog"
 	"os"
+	"path/filepath"
 
+	"github.com/dlapiduz/iaf/internal/auth"
 	"github.com/dlapiduz/iaf/internal/config"
 	"github.com/dlapiduz/iaf/internal/k8s"
 	iafmcp "github.com/dlapiduz/iaf/internal/mcp"
@@ -34,7 +36,14 @@ func main() {
 		os.Exit(1)
 	}
 
-	server := iafmcp.NewServer(k8sClient, cfg.Namespace, store, cfg.BaseDomain)
+	sessionsPath := filepath.Join(cfg.SourceStoreDir, "sessions.json")
+	sessions, err := auth.NewSessionStore(sessionsPath)
+	if err != nil {
+		logger.Error("failed to create session store", "error", err)
+		os.Exit(1)
+	}
+
+	server := iafmcp.NewServer(k8sClient, sessions, store, cfg.BaseDomain)
 
 	logger.Info("starting MCP server", "transport", cfg.MCPTransport)
 

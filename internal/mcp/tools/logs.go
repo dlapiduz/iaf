@@ -16,9 +16,10 @@ import (
 )
 
 type AppLogsInput struct {
-	Name      string `json:"name" jsonschema:"application name"`
+	SessionID string `json:"session_id" jsonschema:"required - session ID returned by the register tool"`
+	Name      string `json:"name" jsonschema:"required - application name to get logs for"`
 	Lines     int64  `json:"lines,omitempty" jsonschema:"number of log lines to return (default: 100)"`
-	BuildLogs bool   `json:"build_logs,omitempty" jsonschema:"return build logs instead of app logs"`
+	BuildLogs bool   `json:"build_logs,omitempty" jsonschema:"set to true to get build logs instead of application runtime logs"`
 }
 
 // RegisterAppLogs registers the app_logs tool. It needs both the controller-runtime
@@ -26,8 +27,12 @@ type AppLogsInput struct {
 func RegisterAppLogs(server *gomcp.Server, deps *Dependencies) {
 	gomcp.AddTool(server, &gomcp.Tool{
 		Name:        "app_logs",
-		Description: "Get logs from a deployed application. Set build_logs=true to get kpack build logs instead of application logs.",
+		Description: "Get logs from an application's running pods, or build logs if build_logs=true. Requires session_id from the register tool and the application name. Use build_logs=true to debug build failures. Default: last 100 lines.",
 	}, func(ctx context.Context, req *gomcp.CallToolRequest, input AppLogsInput) (*gomcp.CallToolResult, any, error) {
+		namespace, err := deps.ResolveNamespace(input.SessionID)
+		if err != nil {
+			return nil, nil, err
+		}
 		if input.Name == "" {
 			return nil, nil, fmt.Errorf("name is required")
 		}
@@ -39,7 +44,7 @@ func RegisterAppLogs(server *gomcp.Server, deps *Dependencies) {
 
 		// Verify application exists
 		var app iafv1alpha1.Application
-		if err := deps.Client.Get(ctx, types.NamespacedName{Name: input.Name, Namespace: deps.Namespace}, &app); err != nil {
+		if err := deps.Client.Get(ctx, types.NamespacedName{Name: input.Name, Namespace: namespace}, &app); err != nil {
 			if apierrors.IsNotFound(err) {
 				return nil, nil, fmt.Errorf("application %q not found", input.Name)
 			}
@@ -71,8 +76,12 @@ func RegisterAppLogs(server *gomcp.Server, deps *Dependencies) {
 func RegisterAppLogsWithClientset(server *gomcp.Server, deps *Dependencies, clientset kubernetes.Interface) {
 	gomcp.AddTool(server, &gomcp.Tool{
 		Name:        "app_logs",
-		Description: "Get logs from a deployed application. Set build_logs=true to get kpack build logs instead of application logs.",
+		Description: "Get logs from an application's running pods, or build logs if build_logs=true. Requires session_id from the register tool and the application name. Use build_logs=true to debug build failures. Default: last 100 lines.",
 	}, func(ctx context.Context, req *gomcp.CallToolRequest, input AppLogsInput) (*gomcp.CallToolResult, any, error) {
+		namespace, err := deps.ResolveNamespace(input.SessionID)
+		if err != nil {
+			return nil, nil, err
+		}
 		if input.Name == "" {
 			return nil, nil, fmt.Errorf("name is required")
 		}
@@ -83,7 +92,7 @@ func RegisterAppLogsWithClientset(server *gomcp.Server, deps *Dependencies, clie
 		}
 
 		var app iafv1alpha1.Application
-		if err := deps.Client.Get(ctx, types.NamespacedName{Name: input.Name, Namespace: deps.Namespace}, &app); err != nil {
+		if err := deps.Client.Get(ctx, types.NamespacedName{Name: input.Name, Namespace: namespace}, &app); err != nil {
 			if apierrors.IsNotFound(err) {
 				return nil, nil, fmt.Errorf("application %q not found", input.Name)
 			}
@@ -102,7 +111,7 @@ func RegisterAppLogsWithClientset(server *gomcp.Server, deps *Dependencies, clie
 
 		podList := &corev1.PodList{}
 		if err := deps.Client.List(ctx, podList,
-			client.InNamespace(deps.Namespace),
+			client.InNamespace(namespace),
 			client.MatchingLabels{labelKey: input.Name},
 		); err != nil {
 			return nil, nil, fmt.Errorf("listing pods: %w", err)
@@ -128,7 +137,7 @@ func RegisterAppLogsWithClientset(server *gomcp.Server, deps *Dependencies, clie
 			opts.Container = container
 		}
 
-		stream, err := clientset.CoreV1().Pods(deps.Namespace).GetLogs(pod.Name, opts).Stream(ctx)
+		stream, err := clientset.CoreV1().Pods(namespace).GetLogs(pod.Name, opts).Stream(ctx)
 		if err != nil {
 			return nil, nil, fmt.Errorf("opening log stream: %w", err)
 		}

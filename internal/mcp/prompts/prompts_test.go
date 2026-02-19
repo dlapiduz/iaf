@@ -15,7 +15,6 @@ func setupServer(t *testing.T) *gomcp.ClientSession {
 	ctx := context.Background()
 
 	deps := &tools.Dependencies{
-		Namespace:  "test-ns",
 		BaseDomain: "test.example.com",
 	}
 
@@ -59,8 +58,11 @@ func TestDeployGuide(t *testing.T) {
 	text := msg.Content.(*gomcp.TextContent).Text
 
 	// Verify dynamic values are injected
-	if !strings.Contains(text, "test-ns") {
-		t.Error("expected namespace 'test-ns' in deploy guide text")
+	if !strings.Contains(text, "register") {
+		t.Error("expected 'register' instruction in deploy guide text")
+	}
+	if !strings.Contains(text, "session_id") {
+		t.Error("expected 'session_id' in deploy guide text")
 	}
 	if !strings.Contains(text, "test.example.com") {
 		t.Error("expected base domain 'test.example.com' in deploy guide text")

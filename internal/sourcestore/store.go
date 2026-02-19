@@ -34,8 +34,8 @@ func New(dir, baseURL string, logger *slog.Logger) (*Store, error) {
 
 // StoreFiles takes a map of file paths to contents and stores them as a gzipped tarball.
 // Returns the blob URL that kpack can fetch.
-func (s *Store) StoreFiles(appName string, files map[string]string) (string, error) {
-	appDir := filepath.Join(s.dir, appName)
+func (s *Store) StoreFiles(namespace, appName string, files map[string]string) (string, error) {
+	appDir := filepath.Join(s.dir, namespace, appName)
 	if err := os.MkdirAll(appDir, 0o755); err != nil {
 		return "", fmt.Errorf("creating app source directory: %w", err)
 	}
@@ -77,15 +77,15 @@ func (s *Store) StoreFiles(appName string, files map[string]string) (string, err
 		return "", fmt.Errorf("writing tarball: %w", err)
 	}
 
-	blobURL := fmt.Sprintf("%s/sources/%s/source.tar.gz", s.baseURL, appName)
-	s.logger.Info("stored source code", "app", appName, "url", blobURL, "files", len(files))
+	blobURL := fmt.Sprintf("%s/sources/%s/%s/source.tar.gz", s.baseURL, namespace, appName)
+	s.logger.Info("stored source code", "namespace", namespace, "app", appName, "url", blobURL, "files", len(files))
 	return blobURL, nil
 }
 
 // StoreTarball stores a raw tarball for an application.
 // Returns the blob URL.
-func (s *Store) StoreTarball(appName string, r io.Reader) (string, error) {
-	appDir := filepath.Join(s.dir, appName)
+func (s *Store) StoreTarball(namespace, appName string, r io.Reader) (string, error) {
+	appDir := filepath.Join(s.dir, namespace, appName)
 	if err := os.MkdirAll(appDir, 0o755); err != nil {
 		return "", fmt.Errorf("creating app source directory: %w", err)
 	}
@@ -101,8 +101,8 @@ func (s *Store) StoreTarball(appName string, r io.Reader) (string, error) {
 		return "", fmt.Errorf("writing tarball: %w", err)
 	}
 
-	blobURL := fmt.Sprintf("%s/sources/%s/source.tar.gz", s.baseURL, appName)
-	s.logger.Info("stored source tarball", "app", appName, "url", blobURL)
+	blobURL := fmt.Sprintf("%s/sources/%s/%s/source.tar.gz", s.baseURL, namespace, appName)
+	s.logger.Info("stored source tarball", "namespace", namespace, "app", appName, "url", blobURL)
 	return blobURL, nil
 }
 
@@ -113,7 +113,7 @@ func (s *Store) Handler() http.Handler {
 }
 
 // Delete removes stored source for an application.
-func (s *Store) Delete(appName string) error {
-	appDir := filepath.Join(s.dir, appName)
+func (s *Store) Delete(namespace, appName string) error {
+	appDir := filepath.Join(s.dir, namespace, appName)
 	return os.RemoveAll(appDir)
 }

@@ -11,16 +11,22 @@ import (
 )
 
 type ListAppsInput struct {
-	Status string `json:"status,omitempty" jsonschema:"filter by status (Pending, Building, Deploying, Running, Failed)"`
+	SessionID string `json:"session_id" jsonschema:"required - session ID returned by the register tool"`
+	Status    string `json:"status,omitempty" jsonschema:"filter by status: Pending, Building, Deploying, Running, or Failed"`
 }
 
 func RegisterListApps(server *gomcp.Server, deps *Dependencies) {
 	gomcp.AddTool(server, &gomcp.Tool{
 		Name:        "list_apps",
-		Description: "List all deployed applications with their status, source type, and URLs. Optionally filter by status.",
+		Description: "List all applications in your session's workspace with their current status, source type, and URLs. Requires session_id from the register tool. Optionally filter by status (Pending, Building, Deploying, Running, Failed).",
 	}, func(ctx context.Context, req *gomcp.CallToolRequest, input ListAppsInput) (*gomcp.CallToolResult, any, error) {
+		namespace, err := deps.ResolveNamespace(input.SessionID)
+		if err != nil {
+			return nil, nil, err
+		}
+
 		var list iafv1alpha1.ApplicationList
-		if err := deps.Client.List(ctx, &list, client.InNamespace(deps.Namespace)); err != nil {
+		if err := deps.Client.List(ctx, &list, client.InNamespace(namespace)); err != nil {
 			return nil, nil, fmt.Errorf("listing applications: %w", err)
 		}
 

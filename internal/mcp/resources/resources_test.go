@@ -16,7 +16,6 @@ func setupServer(t *testing.T) *gomcp.ClientSession {
 	ctx := context.Background()
 
 	deps := &tools.Dependencies{
-		Namespace:  "test-ns",
 		BaseDomain: "test.example.com",
 	}
 
@@ -66,8 +65,8 @@ func TestPlatformInfo(t *testing.T) {
 		t.Fatalf("failed to parse platform info JSON: %v", err)
 	}
 
-	if info["namespace"] != "test-ns" {
-		t.Errorf("expected namespace 'test-ns', got %v", info["namespace"])
+	if info["namespace"] == nil || info["namespace"] == "" {
+		t.Error("expected namespace info to be present")
 	}
 	if info["baseDomain"] != "test.example.com" {
 		t.Errorf("expected baseDomain 'test.example.com', got %v", info["baseDomain"])
@@ -232,8 +231,8 @@ func TestApplicationSpec(t *testing.T) {
 	if !ok {
 		t.Fatal("expected constraints to be an object")
 	}
-	if constraints["namespace"] != "test-ns" {
-		t.Errorf("expected namespace 'test-ns' in constraints, got %v", constraints["namespace"])
+	if constraints["namespace"] == nil || constraints["namespace"] == "" {
+		t.Error("expected namespace info in constraints")
 	}
 }
 

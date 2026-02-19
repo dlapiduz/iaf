@@ -9,16 +9,16 @@ import (
 // Config holds all configuration for IAF components.
 type Config struct {
 	// API server settings
-	APIPort    int    `mapstructure:"api_port"`
-	APIKey     string `mapstructure:"api_key"`
+	APIPort   int      `mapstructure:"api_port"`
+	APITokens []string `mapstructure:"api_tokens"`
 
 	// MCP server settings
 	MCPTransport string `mapstructure:"mcp_transport"` // "stdio" or "http"
 	MCPPort      int    `mapstructure:"mcp_port"`
 
 	// Kubernetes settings
-	Namespace       string `mapstructure:"namespace"`
-	KubeConfig      string `mapstructure:"kubeconfig"`
+	DefaultNamespace string `mapstructure:"default_namespace"`
+	KubeConfig       string `mapstructure:"kubeconfig"`
 
 	// kpack settings
 	ClusterBuilder string `mapstructure:"cluster_builder"`
@@ -37,10 +37,10 @@ func Load() (*Config, error) {
 	v := viper.New()
 
 	v.SetDefault("api_port", 8080)
-	v.SetDefault("api_key", "iaf-dev-key")
+	v.SetDefault("api_tokens", []string{"iaf-dev-key"})
 	v.SetDefault("mcp_transport", "stdio")
 	v.SetDefault("mcp_port", 8081)
-	v.SetDefault("namespace", "iaf-apps")
+	v.SetDefault("default_namespace", "iaf-apps")
 	v.SetDefault("cluster_builder", "iaf-cluster-builder")
 	v.SetDefault("registry_prefix", "registry.localhost:5000/iaf")
 	v.SetDefault("source_store_dir", "/tmp/iaf-sources")

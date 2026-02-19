@@ -18,3 +18,12 @@ release-*.yaml
 
 # OS
 .DS_Store
+
+# Secrets and local config
+.env
+.env.*
+kubeconfig*
+sessions.json
+
+# Claude Code
+.claude/

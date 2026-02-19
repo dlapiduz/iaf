@@ -12,20 +12,25 @@ import (
 )
 
 type DeployAppInput struct {
-	Name        string               `json:"name" jsonschema:"application name"`
-	Image       string               `json:"image,omitempty" jsonschema:"pre-built container image reference"`
-	GitURL      string               `json:"git_url,omitempty" jsonschema:"git repository URL to build from"`
+	SessionID   string               `json:"session_id" jsonschema:"required - session ID returned by the register tool"`
+	Name        string               `json:"name" jsonschema:"required - application name (lowercase, hyphens allowed, becomes part of URL)"`
+	Image       string               `json:"image,omitempty" jsonschema:"container image to deploy (e.g. 'nginx:latest') - provide either image or git_url"`
+	GitURL      string               `json:"git_url,omitempty" jsonschema:"git repository URL to build from (e.g. 'https://github.com/user/repo') - provide either image or git_url"`
 	GitRevision string               `json:"git_revision,omitempty" jsonschema:"git branch, tag, or commit (default: main)"`
-	Port        int32                `json:"port,omitempty" jsonschema:"container port (default: 8080)"`
+	Port        int32                `json:"port,omitempty" jsonschema:"port your app listens on (default: 8080)"`
 	Replicas    int32                `json:"replicas,omitempty" jsonschema:"number of replicas (default: 1)"`
-	Env         []iafv1alpha1.EnvVar `json:"env,omitempty" jsonschema:"environment variables"`
+	Env         []iafv1alpha1.EnvVar `json:"env,omitempty" jsonschema:"environment variables as [{name, value}]"`
 }
 
 func RegisterDeployApp(server *gomcp.Server, deps *Dependencies) {
 	gomcp.AddTool(server, &gomcp.Tool{
 		Name:        "deploy_app",
-		Description: "Deploy an application from a container image or git repository. Either image or git_url must be provided.",
+		Description: "Deploy an application from a pre-built container image or git repository. Requires session_id from the register tool. Provide either 'image' (e.g. 'nginx:latest') or 'git_url' (e.g. 'https://github.com/user/repo'). The app will be available at http://<name>.<base-domain> once running. Default port: 8080.",
 	}, func(ctx context.Context, req *gomcp.CallToolRequest, input DeployAppInput) (*gomcp.CallToolResult, any, error) {
+		namespace, err := deps.ResolveNamespace(input.SessionID)
+		if err != nil {
+			return nil, nil, err
+		}
 		if input.Name == "" {
 			return nil, nil, fmt.Errorf("name is required")
 		}
@@ -33,10 +38,14 @@ func RegisterDeployApp(server *gomcp.Server, deps *Dependencies) {
 			return nil, nil, fmt.Errorf("either image or git_url is required")
 		}
 
+		if err := deps.CheckAppNameAvailable(ctx, input.Name, namespace); err != nil {
+			return nil, nil, err
+		}
+
 		app := &iafv1alpha1.Application{
 			ObjectMeta: metav1.ObjectMeta{
 				Name:      input.Name,
-				Namespace: deps.Namespace,
+				Namespace: namespace,
 			},
 			Spec: iafv1alpha1.ApplicationSpec{
 				Image:    input.Image,

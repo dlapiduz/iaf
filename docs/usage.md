@@ -17,7 +17,7 @@ curl http://iaf.localhost/health
 
 ## Connecting Claude Code to IAF
 
-The apiserver exposes an MCP server at `http://iaf.localhost/mcp` via Streamable HTTP. No authentication is required for the MCP endpoint.
+The apiserver exposes an MCP server at `http://iaf.localhost/mcp` via Streamable HTTP. The MCP endpoint requires a Bearer token for authentication (same tokens as the REST API).
 
 ### Add the MCP server
 
@@ -27,14 +27,17 @@ Run this from any project directory where you want Claude to have access to IAF:
 claude mcp add --transport http iaf http://iaf.localhost/mcp
 ```
 
-Or create a `.mcp.json` in your project root to share the config with your team:
+Then add the authorization header. In your Claude Code MCP config (`.mcp.json` or `~/.claude.json`):
 
 ```json
 {
   "mcpServers": {
     "iaf": {
       "type": "http",
-      "url": "http://iaf.localhost/mcp"
+      "url": "http://iaf.localhost/mcp",
+      "headers": {
+        "Authorization": "Bearer <your-api-token>"
+      }
     }
   }
 }
@@ -58,7 +61,7 @@ Start Claude Code and check that the IAF tools are available:
 ```
 > /mcp
 
-# You should see "iaf" listed with 6 tools, 2 prompts, and 3 resources
+# You should see "iaf" listed with 7 tools, 2 prompts, and 3 resources
 ```
 
 ## What Claude Can Do
@@ -69,11 +72,12 @@ Once connected, Claude has access to tools, prompts, and resources through the M
 
 | Tool | Description |
 |------|-------------|
+| `register` | **Call first.** Creates a session and returns a `session_id` required by all other tools |
 | `deploy_app` | Deploy an application from a container image or git repository |
 | `push_code` | Upload source code files and deploy — the platform auto-detects the language and builds a container |
 | `app_status` | Get the current status of an application (phase, URL, build status, replicas) |
 | `app_logs` | Get application or build logs |
-| `list_apps` | List all deployed applications |
+| `list_apps` | List all deployed applications in the current session |
 | `delete_app` | Delete an application and all its resources |
 
 ### Prompts (guidance)
@@ -227,8 +231,7 @@ The platform is configured via environment variables with the `IAF_` prefix.
 | Variable | Default | Description |
 |----------|---------|-------------|
 | `IAF_API_PORT` | `8080` | API server listen port |
-| `IAF_API_KEY` | `iaf-dev-key` | Bearer token for REST API authentication |
-| `IAF_NAMESPACE` | `iaf-apps` | Kubernetes namespace for deployed applications |
+| `IAF_API_TOKENS` | `iaf-dev-key` | Comma-separated list of valid Bearer tokens for API and MCP authentication |
 | `IAF_BASE_DOMAIN` | `localhost` | Base domain for app routing (`<name>.<base_domain>`) |
 | `IAF_KUBECONFIG` | (default) | Path to kubeconfig file |
 | `IAF_CLUSTER_BUILDER` | `iaf-cluster-builder` | kpack ClusterBuilder name |

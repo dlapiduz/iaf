@@ -8,6 +8,7 @@ import (
 	"strconv"
 
 	iafv1alpha1 "github.com/dlapiduz/iaf/api/v1alpha1"
+	"github.com/dlapiduz/iaf/internal/auth"
 	"github.com/labstack/echo/v4"
 	corev1 "k8s.io/api/core/v1"
 	apierrors "k8s.io/apimachinery/pkg/api/errors"
@@ -19,19 +20,39 @@ import (
 type LogsHandler struct {
 	client    client.Client
 	clientset kubernetes.Interface
-	namespace string
+	sessions  *auth.SessionStore
 }
 
-func NewLogsHandler(c client.Client, cs kubernetes.Interface, namespace string) *LogsHandler {
+func NewLogsHandler(c client.Client, cs kubernetes.Interface, sessions *auth.SessionStore) *LogsHandler {
 	return &LogsHandler{
 		client:    c,
 		clientset: cs,
-		namespace: namespace,
+		sessions:  sessions,
 	}
+}
+
+func (h *LogsHandler) resolveNamespace(c echo.Context) (string, error) {
+	sessionID := c.Request().Header.Get("X-IAF-Session")
+	if sessionID == "" {
+		sessionID = c.QueryParam("session_id")
+	}
+	if sessionID == "" {
+		return "", fmt.Errorf("missing session ID: provide X-IAF-Session header or session_id query parameter")
+	}
+	sess, ok := h.sessions.Lookup(sessionID)
+	if !ok {
+		return "", fmt.Errorf("session not found, call register first")
+	}
+	return sess.Namespace, nil
 }
 
 // GetLogs returns logs for an application's pods.
 func (h *LogsHandler) GetLogs(c echo.Context) error {
+	namespace, err := h.resolveNamespace(c)
+	if err != nil {
+		return c.JSON(http.StatusBadRequest, map[string]string{"error": err.Error()})
+	}
+
 	name := c.Param("name")
 	lines := int64(100)
 	if l := c.QueryParam("lines"); l != "" {
@@ -42,7 +63,7 @@ func (h *LogsHandler) GetLogs(c echo.Context) error {
 
 	// Verify application exists
 	var app iafv1alpha1.Application
-	if err := h.client.Get(c.Request().Context(), types.NamespacedName{Name: name, Namespace: h.namespace}, &app); err != nil {
+	if err := h.client.Get(c.Request().Context(), types.NamespacedName{Name: name, Namespace: namespace}, &app); err != nil {
 		if apierrors.IsNotFound(err) {
 			return c.JSON(http.StatusNotFound, map[string]string{"error": "application not found"})
 		}
@@ -52,7 +73,7 @@ func (h *LogsHandler) GetLogs(c echo.Context) error {
 	// Get pods for the application
 	podList := &corev1.PodList{}
 	if err := h.client.List(c.Request().Context(), podList,
-		client.InNamespace(h.namespace),
+		client.InNamespace(namespace),
 		client.MatchingLabels{"iaf.io/application": name},
 	); err != nil {
 		return c.JSON(http.StatusInternalServerError, map[string]string{"error": err.Error()})
@@ -67,7 +88,7 @@ func (h *LogsHandler) GetLogs(c echo.Context) error {
 
 	// Get logs from the first pod
 	pod := podList.Items[0]
-	logs, err := h.getPodLogs(c.Request().Context(), pod.Name, "app", lines)
+	logs, err := h.getPodLogs(c.Request().Context(), namespace, pod.Name, "app", lines)
 	if err != nil {
 		return c.JSON(http.StatusInternalServerError, map[string]string{"error": err.Error()})
 	}
@@ -81,11 +102,16 @@ func (h *LogsHandler) GetLogs(c echo.Context) error {
 
 // GetBuildLogs returns kpack build logs for an application.
 func (h *LogsHandler) GetBuildLogs(c echo.Context) error {
+	namespace, err := h.resolveNamespace(c)
+	if err != nil {
+		return c.JSON(http.StatusBadRequest, map[string]string{"error": err.Error()})
+	}
+
 	name := c.Param("name")
 
 	// Verify application exists
 	var app iafv1alpha1.Application
-	if err := h.client.Get(c.Request().Context(), types.NamespacedName{Name: name, Namespace: h.namespace}, &app); err != nil {
+	if err := h.client.Get(c.Request().Context(), types.NamespacedName{Name: name, Namespace: namespace}, &app); err != nil {
 		if apierrors.IsNotFound(err) {
 			return c.JSON(http.StatusNotFound, map[string]string{"error": "application not found"})
 		}
@@ -95,7 +121,7 @@ func (h *LogsHandler) GetBuildLogs(c echo.Context) error {
 	// Look for kpack build pods
 	podList := &corev1.PodList{}
 	if err := h.client.List(c.Request().Context(), podList,
-		client.InNamespace(h.namespace),
+		client.InNamespace(namespace),
 		client.MatchingLabels{"image.kpack.io/image": name},
 	); err != nil {
 		return c.JSON(http.StatusInternalServerError, map[string]string{"error": err.Error()})
@@ -112,7 +138,7 @@ func (h *LogsHandler) GetBuildLogs(c echo.Context) error {
 	pod := podList.Items[len(podList.Items)-1]
 	var allLogs string
 	for _, container := range pod.Spec.InitContainers {
-		logs, err := h.getPodLogs(c.Request().Context(), pod.Name, container.Name, 200)
+		logs, err := h.getPodLogs(c.Request().Context(), namespace, pod.Name, container.Name, 200)
 		if err != nil {
 			continue
 		}
@@ -126,12 +152,12 @@ func (h *LogsHandler) GetBuildLogs(c echo.Context) error {
 	})
 }
 
-func (h *LogsHandler) getPodLogs(ctx context.Context, podName, container string, lines int64) (string, error) {
+func (h *LogsHandler) getPodLogs(ctx context.Context, namespace, podName, container string, lines int64) (string, error) {
 	opts := &corev1.PodLogOptions{
 		Container: container,
 		TailLines: &lines,
 	}
-	req := h.clientset.CoreV1().Pods(h.namespace).GetLogs(podName, opts)
+	req := h.clientset.CoreV1().Pods(namespace).GetLogs(podName, opts)
 	stream, err := req.Stream(ctx)
 	if err != nil {
 		return "", fmt.Errorf("opening log stream: %w", err)

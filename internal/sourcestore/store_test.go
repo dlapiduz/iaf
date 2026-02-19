@@ -19,12 +19,12 @@ func TestStoreFiles_AndServe(t *testing.T) {
 		"go.mod":  "module test\ngo 1.22\n",
 	}
 
-	blobURL, err := store.StoreFiles("myapp", files)
+	blobURL, err := store.StoreFiles("test-ns", "myapp", files)
 	if err != nil {
 		t.Fatal(err)
 	}
 
-	if blobURL != "http://localhost:8080/sources/myapp/source.tar.gz" {
+	if blobURL != "http://localhost:8080/sources/test-ns/myapp/source.tar.gz" {
 		t.Errorf("unexpected blob URL: %s", blobURL)
 	}
 
@@ -32,7 +32,7 @@ func TestStoreFiles_AndServe(t *testing.T) {
 	// e.GET("/sources/*", echo.WrapHandler(http.StripPrefix("/sources/", store.Handler())))
 	handler := http.StripPrefix("/sources/", store.Handler())
 
-	req := httptest.NewRequest("GET", "/sources/myapp/source.tar.gz", nil)
+	req := httptest.NewRequest("GET", "/sources/test-ns/myapp/source.tar.gz", nil)
 	w := httptest.NewRecorder()
 	handler.ServeHTTP(w, req)
 
@@ -68,17 +68,17 @@ func TestStoreFiles_Delete(t *testing.T) {
 		t.Fatal(err)
 	}
 
-	_, err = store.StoreFiles("myapp", map[string]string{"f.txt": "hello"})
+	_, err = store.StoreFiles("test-ns", "myapp", map[string]string{"f.txt": "hello"})
 	if err != nil {
 		t.Fatal(err)
 	}
 
-	if err := store.Delete("myapp"); err != nil {
+	if err := store.Delete("test-ns", "myapp"); err != nil {
 		t.Fatal(err)
 	}
 
 	handler := http.StripPrefix("/sources/", store.Handler())
-	req := httptest.NewRequest("GET", "/sources/myapp/source.tar.gz", nil)
+	req := httptest.NewRequest("GET", "/sources/test-ns/myapp/source.tar.gz", nil)
 	w := httptest.NewRecorder()
 	handler.ServeHTTP(w, req)
 
@@ -94,7 +94,7 @@ func TestStoreFiles_PathTraversal(t *testing.T) {
 		t.Fatal(err)
 	}
 
-	_, err = store.StoreFiles("myapp", map[string]string{
+	_, err = store.StoreFiles("test-ns", "myapp", map[string]string{
 		"../etc/passwd": "bad",
 	})
 	if err == nil {

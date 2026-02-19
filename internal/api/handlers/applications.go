@@ -5,6 +5,7 @@ import (
 	"net/http"
 
 	iafv1alpha1 "github.com/dlapiduz/iaf/api/v1alpha1"
+	"github.com/dlapiduz/iaf/internal/auth"
 	"github.com/dlapiduz/iaf/internal/sourcestore"
 	"github.com/labstack/echo/v4"
 	apierrors "k8s.io/apimachinery/pkg/api/errors"
@@ -14,17 +15,32 @@ import (
 )
 
 type ApplicationHandler struct {
-	client    client.Client
-	namespace string
-	store     *sourcestore.Store
+	client   client.Client
+	sessions *auth.SessionStore
+	store    *sourcestore.Store
 }
 
-func NewApplicationHandler(c client.Client, namespace string, store *sourcestore.Store) *ApplicationHandler {
+func NewApplicationHandler(c client.Client, sessions *auth.SessionStore, store *sourcestore.Store) *ApplicationHandler {
 	return &ApplicationHandler{
-		client:    c,
-		namespace: namespace,
-		store:     store,
+		client:   c,
+		sessions: sessions,
+		store:    store,
 	}
+}
+
+func (h *ApplicationHandler) resolveNamespace(c echo.Context) (string, error) {
+	sessionID := c.Request().Header.Get("X-IAF-Session")
+	if sessionID == "" {
+		sessionID = c.QueryParam("session_id")
+	}
+	if sessionID == "" {
+		return "", fmt.Errorf("missing session ID: provide X-IAF-Session header or session_id query parameter")
+	}
+	sess, ok := h.sessions.Lookup(sessionID)
+	if !ok {
+		return "", fmt.Errorf("session not found, call register first")
+	}
+	return sess.Namespace, nil
 }
 
 // ApplicationResponse is the API representation of an Application.
@@ -90,8 +106,13 @@ func toResponse(app *iafv1alpha1.Application) ApplicationResponse {
 
 // List returns all applications.
 func (h *ApplicationHandler) List(c echo.Context) error {
+	namespace, err := h.resolveNamespace(c)
+	if err != nil {
+		return c.JSON(http.StatusBadRequest, map[string]string{"error": err.Error()})
+	}
+
 	var list iafv1alpha1.ApplicationList
-	if err := h.client.List(c.Request().Context(), &list, client.InNamespace(h.namespace)); err != nil {
+	if err := h.client.List(c.Request().Context(), &list, client.InNamespace(namespace)); err != nil {
 		return c.JSON(http.StatusInternalServerError, map[string]string{"error": err.Error()})
 	}
 
@@ -104,9 +125,14 @@ func (h *ApplicationHandler) List(c echo.Context) error {
 
 // Get returns a single application.
 func (h *ApplicationHandler) Get(c echo.Context) error {
+	namespace, err := h.resolveNamespace(c)
+	if err != nil {
+		return c.JSON(http.StatusBadRequest, map[string]string{"error": err.Error()})
+	}
+
 	name := c.Param("name")
 	var app iafv1alpha1.Application
-	if err := h.client.Get(c.Request().Context(), types.NamespacedName{Name: name, Namespace: h.namespace}, &app); err != nil {
+	if err := h.client.Get(c.Request().Context(), types.NamespacedName{Name: name, Namespace: namespace}, &app); err != nil {
 		if apierrors.IsNotFound(err) {
 			return c.JSON(http.StatusNotFound, map[string]string{"error": "application not found"})
 		}
@@ -117,6 +143,11 @@ func (h *ApplicationHandler) Get(c echo.Context) error {
 
 // Create creates a new application.
 func (h *ApplicationHandler) Create(c echo.Context) error {
+	namespace, err := h.resolveNamespace(c)
+	if err != nil {
+		return c.JSON(http.StatusBadRequest, map[string]string{"error": err.Error()})
+	}
+
 	var req CreateApplicationRequest
 	if err := c.Bind(&req); err != nil {
 		return c.JSON(http.StatusBadRequest, map[string]string{"error": err.Error()})
@@ -132,7 +163,7 @@ func (h *ApplicationHandler) Create(c echo.Context) error {
 	app := &iafv1alpha1.Application{
 		ObjectMeta: metav1.ObjectMeta{
 			Name:      req.Name,
-			Namespace: h.namespace,
+			Namespace: namespace,
 		},
 		Spec: iafv1alpha1.ApplicationSpec{
 			Image:    req.Image,
@@ -169,6 +200,11 @@ func (h *ApplicationHandler) Create(c echo.Context) error {
 
 // Update updates an existing application.
 func (h *ApplicationHandler) Update(c echo.Context) error {
+	namespace, err := h.resolveNamespace(c)
+	if err != nil {
+		return c.JSON(http.StatusBadRequest, map[string]string{"error": err.Error()})
+	}
+
 	name := c.Param("name")
 	var req CreateApplicationRequest
 	if err := c.Bind(&req); err != nil {
@@ -176,7 +212,7 @@ func (h *ApplicationHandler) Update(c echo.Context) error {
 	}
 
 	var app iafv1alpha1.Application
-	if err := h.client.Get(c.Request().Context(), types.NamespacedName{Name: name, Namespace: h.namespace}, &app); err != nil {
+	if err := h.client.Get(c.Request().Context(), types.NamespacedName{Name: name, Namespace: namespace}, &app); err != nil {
 		if apierrors.IsNotFound(err) {
 			return c.JSON(http.StatusNotFound, map[string]string{"error": "application not found"})
 		}
@@ -218,11 +254,16 @@ func (h *ApplicationHandler) Update(c echo.Context) error {
 
 // Delete deletes an application.
 func (h *ApplicationHandler) Delete(c echo.Context) error {
+	namespace, err := h.resolveNamespace(c)
+	if err != nil {
+		return c.JSON(http.StatusBadRequest, map[string]string{"error": err.Error()})
+	}
+
 	name := c.Param("name")
 	app := &iafv1alpha1.Application{
 		ObjectMeta: metav1.ObjectMeta{
 			Name:      name,
-			Namespace: h.namespace,
+			Namespace: namespace,
 		},
 	}
 
@@ -234,18 +275,23 @@ func (h *ApplicationHandler) Delete(c echo.Context) error {
 	}
 
 	// Clean up source store
-	_ = h.store.Delete(name)
+	_ = h.store.Delete(namespace, name)
 
 	return c.JSON(http.StatusOK, map[string]string{"message": fmt.Sprintf("application %s deleted", name)})
 }
 
 // UploadSource handles source code upload for an application.
 func (h *ApplicationHandler) UploadSource(c echo.Context) error {
+	namespace, err := h.resolveNamespace(c)
+	if err != nil {
+		return c.JSON(http.StatusBadRequest, map[string]string{"error": err.Error()})
+	}
+
 	name := c.Param("name")
 
 	// Check if application exists
 	var app iafv1alpha1.Application
-	if err := h.client.Get(c.Request().Context(), types.NamespacedName{Name: name, Namespace: h.namespace}, &app); err != nil {
+	if err := h.client.Get(c.Request().Context(), types.NamespacedName{Name: name, Namespace: namespace}, &app); err != nil {
 		if apierrors.IsNotFound(err) {
 			return c.JSON(http.StatusNotFound, map[string]string{"error": "application not found"})
 		}
@@ -255,7 +301,6 @@ func (h *ApplicationHandler) UploadSource(c echo.Context) error {
 	contentType := c.Request().Header.Get("Content-Type")
 
 	var blobURL string
-	var err error
 
 	if contentType == "application/json" {
 		// JSON body with file contents
@@ -266,10 +311,10 @@ func (h *ApplicationHandler) UploadSource(c echo.Context) error {
 		if len(req.Files) == 0 {
 			return c.JSON(http.StatusBadRequest, map[string]string{"error": "files map is required"})
 		}
-		blobURL, err = h.store.StoreFiles(name, req.Files)
+		blobURL, err = h.store.StoreFiles(namespace, name, req.Files)
 	} else {
 		// Raw tarball upload
-		blobURL, err = h.store.StoreTarball(name, c.Request().Body)
+		blobURL, err = h.store.StoreTarball(namespace, name, c.Request().Body)
 	}
 
 	if err != nil {

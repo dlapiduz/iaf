@@ -15,8 +15,7 @@ kubectl get pods -n iaf-system
 You should see `iaf-apiserver` and `iaf-controller` pods running. If not, deploy them:
 
 ```bash
-# Build the platform image
-cd /Users/diego/src/iaf2
+# Build the platform image (from the repo root)
 nerdctl build -t iaf-platform:latest .
 nerdctl save iaf-platform:latest | nerdctl --namespace k8s.io load
 
@@ -94,7 +93,7 @@ Claude Code --HTTP--> http://iaf.localhost/mcp --Traefik--> iaf-apiserver (in K8
                                               Deployment + Service + IngressRoute
 ```
 
-All components run in the `iaf-system` namespace. Apps are deployed to `iaf-apps`.
+All components run in the `iaf-system` namespace. Each agent session gets its own isolated namespace.
 
 ## Troubleshooting
 
@@ -106,9 +105,8 @@ All components run in the `iaf-system` namespace. Apps are deployed to `iaf-apps
 
 **MCP connection fails** — Verify the endpoint: `curl http://iaf.localhost/health`
 
-**Rebuilding after code changes** — Rebuild and redeploy:
+**Rebuilding after code changes** — Rebuild and redeploy from the repo root:
 ```bash
-cd /Users/diego/src/iaf2
 nerdctl build -t iaf-platform:latest .
 nerdctl save iaf-platform:latest | nerdctl --namespace k8s.io load
 kubectl rollout restart deployment/iaf-apiserver deployment/iaf-controller -n iaf-system

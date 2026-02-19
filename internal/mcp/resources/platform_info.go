@@ -21,7 +21,7 @@ func RegisterPlatformInfo(server *gomcp.Server, deps *tools.Dependencies) {
 		info := map[string]any{
 			"name":    "Intelligent Application Fabric",
 			"version": "0.1.0",
-			"namespace": deps.Namespace,
+			"namespace": "per-session (call register to get yours)",
 			"baseDomain": deps.BaseDomain,
 			"routing": map[string]any{
 				"ingress":   "traefik",

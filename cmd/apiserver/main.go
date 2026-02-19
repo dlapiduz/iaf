@@ -5,8 +5,10 @@ import (
 	"log/slog"
 	"net/http"
 	"os"
+	"path/filepath"
 
 	"github.com/dlapiduz/iaf/internal/api"
+	"github.com/dlapiduz/iaf/internal/auth"
 	"github.com/dlapiduz/iaf/internal/config"
 	"github.com/dlapiduz/iaf/internal/k8s"
 	iafmcp "github.com/dlapiduz/iaf/internal/mcp"
@@ -51,24 +53,32 @@ func main() {
 		os.Exit(1)
 	}
 
+	// Create session store
+	sessionsPath := filepath.Join(cfg.SourceStoreDir, "sessions.json")
+	sessions, err := auth.NewSessionStore(sessionsPath)
+	if err != nil {
+		logger.Error("failed to create session store", "error", err)
+		os.Exit(1)
+	}
+
 	// Create and configure Echo server
-	e := api.NewServer(cfg.APIKey, logger)
+	e := api.NewServer(cfg.APITokens, logger)
 
 	// Register REST API routes
-	api.RegisterRoutes(e, k8sClient, clientset, cfg.Namespace, store)
+	api.RegisterRoutes(e, k8sClient, clientset, sessions, store)
 
 	// Mount source store file server
 	e.GET("/sources/*", echo.WrapHandler(http.StripPrefix("/sources/", store.Handler())))
 
 	// Create MCP server and mount as Streamable HTTP endpoint
-	mcpServer := iafmcp.NewServer(k8sClient, cfg.Namespace, store, cfg.BaseDomain, clientset)
+	mcpServer := iafmcp.NewServer(k8sClient, sessions, store, cfg.BaseDomain, clientset)
 	mcpHandler := gomcp.NewStreamableHTTPHandler(func(r *http.Request) *gomcp.Server {
 		return mcpServer
 	}, &gomcp.StreamableHTTPOptions{Stateless: true})
 	e.Any("/mcp", echo.WrapHandler(mcpHandler))
 
 	addr := fmt.Sprintf(":%d", cfg.APIPort)
-	logger.Info("starting API server", "addr", addr, "namespace", cfg.Namespace, "mcp", fmt.Sprintf("http://localhost%s/mcp", addr))
+	logger.Info("starting API server", "addr", addr, "mcp", fmt.Sprintf("http://localhost%s/mcp", addr))
 	if err := e.Start(addr); err != nil {
 		logger.Error("API server exited with error", "error", err)
 		os.Exit(1)

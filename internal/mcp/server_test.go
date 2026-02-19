@@ -3,12 +3,16 @@ package mcp_test
 import (
 	"context"
 	"log/slog"
+	"path/filepath"
+	"strings"
 	"testing"
 
 	iafv1alpha1 "github.com/dlapiduz/iaf/api/v1alpha1"
+	"github.com/dlapiduz/iaf/internal/auth"
 	iafmcp "github.com/dlapiduz/iaf/internal/mcp"
 	"github.com/dlapiduz/iaf/internal/sourcestore"
 	gomcp "github.com/modelcontextprotocol/go-sdk/mcp"
+	corev1 "k8s.io/api/core/v1"
 	"k8s.io/apimachinery/pkg/runtime"
 	"sigs.k8s.io/controller-runtime/pkg/client/fake"
 )
@@ -21,6 +25,7 @@ func setupIntegrationServer(t *testing.T) *gomcp.ClientSession {
 	if err := iafv1alpha1.AddToScheme(scheme); err != nil {
 		t.Fatal(err)
 	}
+	_ = corev1.AddToScheme(scheme)
 	k8sClient := fake.NewClientBuilder().WithScheme(scheme).Build()
 
 	store, err := sourcestore.New(t.TempDir(), "http://localhost:8080", slog.Default())
@@ -28,7 +33,12 @@ func setupIntegrationServer(t *testing.T) *gomcp.ClientSession {
 		t.Fatal(err)
 	}
 
-	server := iafmcp.NewServer(k8sClient, "test-ns", store, "test.example.com")
+	sessions, err := auth.NewSessionStore(filepath.Join(t.TempDir(), "sessions.json"))
+	if err != nil {
+		t.Fatal(err)
+	}
+
+	server := iafmcp.NewServer(k8sClient, sessions, store, "test.example.com")
 
 	st, ct := gomcp.NewInMemoryTransports()
 	if _, err := server.Connect(ctx, st, nil); err != nil {
@@ -43,6 +53,24 @@ func setupIntegrationServer(t *testing.T) *gomcp.ClientSession {
 	return cs
 }
 
+func TestNewServer_HasInstructions(t *testing.T) {
+	cs := setupIntegrationServer(t)
+
+	initResult := cs.InitializeResult()
+	if initResult == nil {
+		t.Fatal("expected non-nil InitializeResult")
+	}
+	if initResult.Instructions == "" {
+		t.Fatal("expected server instructions to be set")
+	}
+	// Verify key guidance is present
+	for _, keyword := range []string{"register", "session_id", "CALL THIS FIRST", "push_code"} {
+		if !strings.Contains(initResult.Instructions, keyword) {
+			t.Errorf("instructions should mention %q", keyword)
+		}
+	}
+}
+
 func TestNewServer_RegistersAllTools(t *testing.T) {
 	cs := setupIntegrationServer(t)
 	ctx := context.Background()
@@ -53,6 +81,7 @@ func TestNewServer_RegistersAllTools(t *testing.T) {
 	}
 
 	expectedTools := []string{
+		"register",
 		"deploy_app",
 		"push_code",
 		"app_status",

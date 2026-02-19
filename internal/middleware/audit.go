@@ -27,6 +27,7 @@ func Audit(logger *slog.Logger) echo.MiddlewareFunc {
 				"duration_ms", time.Since(start).Milliseconds(),
 				"remote_addr", req.RemoteAddr,
 				"user_agent", req.UserAgent(),
+				"session_id", req.Header.Get("X-IAF-Session"),
 			)
 
 			return err

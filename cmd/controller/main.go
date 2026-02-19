@@ -57,7 +57,7 @@ func main() {
 		os.Exit(1)
 	}
 
-	logger.Info("starting controller manager", "namespace", cfg.Namespace)
+	logger.Info("starting controller manager")
 	if err := mgr.Start(ctrl.SetupSignalHandler()); err != nil {
 		logger.Error("controller manager exited with error", "error", err)
 		os.Exit(1)

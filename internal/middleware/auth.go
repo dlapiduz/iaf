@@ -8,13 +8,14 @@ import (
 	"github.com/labstack/echo/v4"
 )
 
-// Auth returns an Echo middleware that validates API key authentication.
-func Auth(apiKey string) echo.MiddlewareFunc {
+// Auth returns an Echo middleware that validates Bearer token authentication
+// against a list of valid tokens.
+func Auth(tokens []string) echo.MiddlewareFunc {
 	return func(next echo.HandlerFunc) echo.HandlerFunc {
 		return func(c echo.Context) error {
-			// Skip auth for health, MCP, and source store endpoints
+			// Skip auth for health and source store endpoints
 			path := c.Request().URL.Path
-			if path == "/health" || path == "/ready" || path == "/mcp" || strings.HasPrefix(path, "/sources/") {
+			if path == "/health" || path == "/ready" || strings.HasPrefix(path, "/sources/") {
 				return next(c)
 			}
 
@@ -32,13 +33,22 @@ func Auth(apiKey string) echo.MiddlewareFunc {
 				})
 			}
 
-			if subtle.ConstantTimeCompare([]byte(token), []byte(apiKey)) != 1 {
+			if !matchToken(token, tokens) {
 				return c.JSON(http.StatusUnauthorized, map[string]string{
-					"error": "invalid API key",
+					"error": "invalid API token",
 				})
 			}
 
 			return next(c)
 		}
 	}
+}
+
+func matchToken(token string, valid []string) bool {
+	for _, v := range valid {
+		if subtle.ConstantTimeCompare([]byte(token), []byte(v)) == 1 {
+			return true
+		}
+	}
+	return false
 }

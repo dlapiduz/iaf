@@ -12,14 +12,19 @@ import (
 )
 
 type DeleteAppInput struct {
-	Name string `json:"name" jsonschema:"application name"`
+	SessionID string `json:"session_id" jsonschema:"required - session ID returned by the register tool"`
+	Name      string `json:"name" jsonschema:"required - application name to delete"`
 }
 
 func RegisterDeleteApp(server *gomcp.Server, deps *Dependencies) {
 	gomcp.AddTool(server, &gomcp.Tool{
 		Name:        "delete_app",
-		Description: "Delete a deployed application. This removes the application and all associated resources (deployment, service, ingress route, and kpack build).",
+		Description: "Delete an application and all its associated Kubernetes resources (deployment, service, ingress route, build). Requires session_id from the register tool and the application name. This action is irreversible.",
 	}, func(ctx context.Context, req *gomcp.CallToolRequest, input DeleteAppInput) (*gomcp.CallToolResult, any, error) {
+		namespace, err := deps.ResolveNamespace(input.SessionID)
+		if err != nil {
+			return nil, nil, err
+		}
 		if input.Name == "" {
 			return nil, nil, fmt.Errorf("name is required")
 		}
@@ -27,7 +32,7 @@ func RegisterDeleteApp(server *gomcp.Server, deps *Dependencies) {
 		app := &iafv1alpha1.Application{
 			ObjectMeta: metav1.ObjectMeta{
 				Name:      input.Name,
-				Namespace: deps.Namespace,
+				Namespace: namespace,
 			},
 		}
 
@@ -39,7 +44,7 @@ func RegisterDeleteApp(server *gomcp.Server, deps *Dependencies) {
 		}
 
 		// Clean up stored source
-		_ = deps.Store.Delete(input.Name)
+		_ = deps.Store.Delete(namespace, input.Name)
 
 		result := map[string]any{
 			"name":    input.Name,

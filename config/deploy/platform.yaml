@@ -55,8 +55,6 @@ spec:
           imagePullPolicy: Never
           command: ["/usr/local/bin/controller"]
           env:
-            - name: IAF_NAMESPACE
-              value: "iaf-apps"
             - name: IAF_CLUSTER_BUILDER
               value: "iaf-cluster-builder"
             - name: IAF_REGISTRY_PREFIX
@@ -93,10 +91,8 @@ spec:
           env:
             - name: IAF_API_PORT
               value: "8080"
-            - name: IAF_API_KEY
+            - name: IAF_API_TOKENS
               value: "iaf-dev-key"
-            - name: IAF_NAMESPACE
-              value: "iaf-apps"
             - name: IAF_CLUSTER_BUILDER
               value: "iaf-cluster-builder"
             - name: IAF_REGISTRY_PREFIX

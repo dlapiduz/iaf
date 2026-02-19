@@ -9,7 +9,7 @@ import (
 )
 
 // NewServer creates a new Echo server with middleware configured.
-func NewServer(apiKey string, logger *slog.Logger) *echo.Echo {
+func NewServer(tokens []string, logger *slog.Logger) *echo.Echo {
 	e := echo.New()
 	e.HideBanner = true
 
@@ -21,7 +21,7 @@ func NewServer(apiKey string, logger *slog.Logger) *echo.Echo {
 		AllowMethods: []string{"GET", "POST", "PUT", "DELETE", "OPTIONS"},
 		AllowHeaders: []string{"Authorization", "Content-Type"},
 	}))
-	e.Use(middleware.Auth(apiKey))
+	e.Use(middleware.Auth(tokens))
 	e.Use(middleware.Audit(logger))
 
 	return e

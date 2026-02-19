@@ -2,7 +2,6 @@ package prompts
 
 import (
 	"context"
-	"fmt"
 
 	"github.com/dlapiduz/iaf/internal/mcp/tools"
 	gomcp "github.com/modelcontextprotocol/go-sdk/mcp"
@@ -15,10 +14,18 @@ func RegisterDeployGuide(server *gomcp.Server, deps *tools.Dependencies) {
 		Name:        "deploy-guide",
 		Description: "Comprehensive deployment workflow guidance for the IAF platform — methods, lifecycle phases, security considerations, and constraints.",
 	}, func(ctx context.Context, req *gomcp.GetPromptRequest) (*gomcp.GetPromptResult, error) {
-		text := fmt.Sprintf(`# IAF Deployment Guide
+		text := `# IAF Deployment Guide
+
+## Getting Started — Session Registration
+
+**Before using any tool, you MUST register a session:**
+1. Call the ` + "`register`" + ` tool (optionally with a friendly name).
+2. Store the returned ` + "`session_id`" + ` — you will need it for EVERY subsequent tool call.
+3. Include ` + "`session_id`" + ` in every tool call for the duration of your work.
+4. If resuming previous work, reuse a previously stored session_id.
 
 ## Platform Overview
-IAF (Intelligent Application Fabric) deploys applications on Kubernetes using the Application custom resource in namespace %q. Applications are exposed via Traefik ingress at <name>.%s.
+IAF (Intelligent Application Fabric) deploys applications on Kubernetes. Each session gets its own isolated namespace. Applications are exposed via Traefik ingress at <name>.` + deps.BaseDomain + `.
 
 ## Deployment Methods
 
@@ -46,12 +53,12 @@ Use the push_code tool to upload source files as a tarball. The platform stores 
 
 ## Naming Constraints
 - Application names must be valid DNS labels: lowercase alphanumeric and hyphens, 1-63 characters.
-- Names must be unique within the namespace.
-- The name becomes part of the URL: <name>.%s
+- Names must be unique within your session's namespace.
+- The name becomes part of the URL: <name>.` + deps.BaseDomain + `
 
 ## Networking
 - Default container port: 8080 (configurable via "port" field).
-- Applications are exposed via HTTP at http://<name>.%s
+- Applications are exposed via HTTP at http://<name>.` + deps.BaseDomain + `
 - Health endpoint recommendation: implement a /health or /healthz endpoint for readiness probes.
 
 ## Security Considerations
@@ -59,6 +66,7 @@ Use the push_code tool to upload source files as a tarball. The platform stores 
 - Containers run as non-root by default (buildpack behavior).
 - Environment variables can be set via the "env" field — do not embed secrets in source code.
 - Images are built in-cluster; no external registry credentials are needed for blob/git builds.
+- Each session is isolated in its own Kubernetes namespace.
 
 ## Replicas and Scaling
 - Default: 1 replica.
@@ -66,13 +74,14 @@ Use the push_code tool to upload source files as a tarball. The platform stores 
 - The platform manages the Kubernetes Deployment; pods are spread across available nodes.
 
 ## Recommended Workflow
-1. Read the language-guide prompt for your target language to understand buildpack requirements.
-2. Write buildpack-compatible code (correct files, entry points, dependency manifests).
-3. Use push_code to upload source or provide a git URL.
-4. Use deploy_app to create the Application CR.
-5. Use app_status to monitor build and deployment progress.
-6. Use app_logs to debug any issues.
-`, deps.Namespace, deps.BaseDomain, deps.BaseDomain, deps.BaseDomain)
+1. Call ` + "`register`" + ` to get a session_id.
+2. Read the language-guide prompt for your target language to understand buildpack requirements.
+3. Write buildpack-compatible code (correct files, entry points, dependency manifests).
+4. Use push_code to upload source or provide a git URL (always include session_id).
+5. Use deploy_app to create the Application CR (always include session_id).
+6. Use app_status to monitor build and deployment progress (always include session_id).
+7. Use app_logs to debug any issues (always include session_id).
+`
 
 		return &gomcp.GetPromptResult{
 			Description: "Comprehensive IAF deployment workflow guidance.",
