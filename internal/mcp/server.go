@@ -5,6 +5,7 @@ import (
 	"github.com/dlapiduz/iaf/internal/mcp/prompts"
 	"github.com/dlapiduz/iaf/internal/mcp/resources"
 	"github.com/dlapiduz/iaf/internal/mcp/tools"
+	"github.com/dlapiduz/iaf/internal/orgstandards"
 	"github.com/dlapiduz/iaf/internal/sourcestore"
 	gomcp "github.com/modelcontextprotocol/go-sdk/mcp"
 	"k8s.io/client-go/kubernetes"
@@ -39,11 +40,16 @@ KEY DETAILS:
 - Your app will be available at http://<app-name>.<base-domain> once Running
 - Each session gets its own isolated Kubernetes namespace
 - Use app_status to monitor builds (typically ~2 minutes)
-- Use app_logs with build_logs=true to debug build failures`
+- Use app_logs with build_logs=true to debug build failures
+
+CODING STANDARDS:
+- Read the coding-guide prompt for organisation coding standards before writing any code
+- Read iaf://org/coding-standards for the machine-readable standards document`
 
 // NewServer creates and configures the MCP server with all tools.
+// If loader is non-nil, org standards are served from that loader; otherwise platform defaults are used.
 // If clientset is non-nil, app_logs will stream real logs from pods.
-func NewServer(k8sClient client.Client, sessions *auth.SessionStore, store *sourcestore.Store, baseDomain string, clientset ...kubernetes.Interface) *gomcp.Server {
+func NewServer(k8sClient client.Client, sessions *auth.SessionStore, store *sourcestore.Store, baseDomain string, loader *orgstandards.Loader, clientset ...kubernetes.Interface) *gomcp.Server {
 	server := gomcp.NewServer(
 		&gomcp.Implementation{
 			Name:    "iaf",
@@ -55,10 +61,11 @@ func NewServer(k8sClient client.Client, sessions *auth.SessionStore, store *sour
 	)
 
 	deps := &tools.Dependencies{
-		Client:     k8sClient,
-		Store:      store,
-		BaseDomain: baseDomain,
-		Sessions:   sessions,
+		Client:       k8sClient,
+		Store:        store,
+		BaseDomain:   baseDomain,
+		Sessions:     sessions,
+		OrgStandards: loader,
 	}
 
 	tools.RegisterRegisterTool(server, deps)
@@ -75,10 +82,12 @@ func NewServer(k8sClient client.Client, sessions *auth.SessionStore, store *sour
 
 	prompts.RegisterDeployGuide(server, deps)
 	prompts.RegisterLanguageGuide(server, deps)
+	prompts.RegisterCodingGuide(server, deps)
 
 	resources.RegisterPlatformInfo(server, deps)
 	resources.RegisterLanguageResources(server, deps)
 	resources.RegisterApplicationSpec(server, deps)
+	resources.RegisterOrgStandards(server, deps)
 
 	return server
 }

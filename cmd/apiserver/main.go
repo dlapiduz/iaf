@@ -1,6 +1,7 @@
 package main
 
 import (
+	"context"
 	"fmt"
 	"log/slog"
 	"net/http"
@@ -12,6 +13,7 @@ import (
 	"github.com/dlapiduz/iaf/internal/config"
 	"github.com/dlapiduz/iaf/internal/k8s"
 	iafmcp "github.com/dlapiduz/iaf/internal/mcp"
+	"github.com/dlapiduz/iaf/internal/orgstandards"
 	"github.com/dlapiduz/iaf/internal/sourcestore"
 	"github.com/labstack/echo/v4"
 	gomcp "github.com/modelcontextprotocol/go-sdk/mcp"
@@ -70,8 +72,14 @@ func main() {
 	// Mount source store file server
 	e.GET("/sources/*", echo.WrapHandler(http.StripPrefix("/sources/", store.Handler())))
 
+	// Create org standards loader (hot-reloads from IAF_ORG_STANDARDS_FILE)
+	ctx, cancel := context.WithCancel(context.Background())
+	defer cancel()
+	orgLoader := orgstandards.New(cfg.OrgStandardsFile, logger)
+	go orgLoader.Start(ctx)
+
 	// Create MCP server and mount as Streamable HTTP endpoint
-	mcpServer := iafmcp.NewServer(k8sClient, sessions, store, cfg.BaseDomain, clientset)
+	mcpServer := iafmcp.NewServer(k8sClient, sessions, store, cfg.BaseDomain, orgLoader, clientset)
 	mcpHandler := gomcp.NewStreamableHTTPHandler(func(r *http.Request) *gomcp.Server {
 		return mcpServer
 	}, &gomcp.StreamableHTTPOptions{Stateless: true})

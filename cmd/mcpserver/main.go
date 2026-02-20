@@ -10,6 +10,7 @@ import (
 	"github.com/dlapiduz/iaf/internal/config"
 	"github.com/dlapiduz/iaf/internal/k8s"
 	iafmcp "github.com/dlapiduz/iaf/internal/mcp"
+	"github.com/dlapiduz/iaf/internal/orgstandards"
 	"github.com/dlapiduz/iaf/internal/sourcestore"
 	gomcp "github.com/modelcontextprotocol/go-sdk/mcp"
 )
@@ -43,11 +44,16 @@ func main() {
 		os.Exit(1)
 	}
 
-	server := iafmcp.NewServer(k8sClient, sessions, store, cfg.BaseDomain)
+	ctx, cancel := context.WithCancel(context.Background())
+	defer cancel()
+
+	orgLoader := orgstandards.New(cfg.OrgStandardsFile, logger)
+	go orgLoader.Start(ctx)
+
+	server := iafmcp.NewServer(k8sClient, sessions, store, cfg.BaseDomain, orgLoader)
 
 	logger.Info("starting MCP server", "transport", cfg.MCPTransport)
 
-	ctx := context.Background()
 	transport := &gomcp.StdioTransport{}
 	if _, err := server.Connect(ctx, transport, nil); err != nil {
 		logger.Error("failed to connect MCP server", "error", err)

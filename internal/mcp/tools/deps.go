@@ -6,16 +6,18 @@ import (
 
 	iafv1alpha1 "github.com/dlapiduz/iaf/api/v1alpha1"
 	"github.com/dlapiduz/iaf/internal/auth"
+	"github.com/dlapiduz/iaf/internal/orgstandards"
 	"github.com/dlapiduz/iaf/internal/sourcestore"
 	"sigs.k8s.io/controller-runtime/pkg/client"
 )
 
 // Dependencies holds shared dependencies for MCP tools.
 type Dependencies struct {
-	Client     client.Client
-	Store      *sourcestore.Store
-	BaseDomain string
-	Sessions   *auth.SessionStore
+	Client       client.Client
+	Store        *sourcestore.Store
+	BaseDomain   string
+	Sessions     *auth.SessionStore
+	OrgStandards *orgstandards.Loader
 }
 
 // ResolveNamespace looks up the session and returns its namespace.

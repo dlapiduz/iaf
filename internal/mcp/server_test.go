@@ -38,7 +38,7 @@ func setupIntegrationServer(t *testing.T) *gomcp.ClientSession {
 		t.Fatal(err)
 	}
 
-	server := iafmcp.NewServer(k8sClient, sessions, store, "test.example.com")
+	server := iafmcp.NewServer(k8sClient, sessions, store, "test.example.com", nil)
 
 	st, ct := gomcp.NewInMemoryTransports()
 	if _, err := server.Connect(ctx, st, nil); err != nil {
@@ -110,7 +110,7 @@ func TestNewServer_RegistersAllPrompts(t *testing.T) {
 		t.Fatal(err)
 	}
 
-	expectedPrompts := []string{"deploy-guide", "language-guide"}
+	expectedPrompts := []string{"deploy-guide", "language-guide", "coding-guide"}
 	promptNames := map[string]bool{}
 	for _, p := range res.Prompts {
 		promptNames[p.Name] = true
@@ -131,7 +131,7 @@ func TestNewServer_RegistersAllResources(t *testing.T) {
 		t.Fatal(err)
 	}
 
-	expectedResources := []string{"platform-info", "application-spec"}
+	expectedResources := []string{"platform-info", "application-spec", "org-coding-standards"}
 	resourceNames := map[string]bool{}
 	for _, r := range res.Resources {
 		resourceNames[r.Name] = true
