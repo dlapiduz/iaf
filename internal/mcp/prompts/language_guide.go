@@ -103,7 +103,8 @@ app.listen(port, () => console.log('Listening on port ' + port));`,
 - Listen on the PORT environment variable (defaults to 8080).
 - Include a package-lock.json for reproducible builds.
 - Do not include node_modules in uploaded source.
-- Provide a /health endpoint for readiness probes.`,
+- Provide a /health endpoint for readiness probes.
+- For frontend apps, start from a scaffold: read iaf://scaffold/nextjs (Next.js + Tailwind) or iaf://scaffold/html (plain HTML + Express).`,
 	},
 	"python": {
 		buildpackID:    "paketo-buildpacks/python",

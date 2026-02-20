@@ -26,6 +26,7 @@ func setupServer(t *testing.T) *gomcp.ClientSession {
 	resources.RegisterLanguageResources(server, deps)
 	resources.RegisterApplicationSpec(server, deps)
 	resources.RegisterOrgStandards(server, deps)
+	resources.RegisterScaffoldResource(server, deps)
 
 	st, ct := gomcp.NewInMemoryTransports()
 	if _, err := server.Connect(ctx, st, nil); err != nil {
@@ -263,16 +264,100 @@ func TestListResources(t *testing.T) {
 		}
 	}
 
-	// Resource templates should list the language-spec template
+	// Resource templates should list language-spec and scaffold.
 	tmplRes, err := cs.ListResourceTemplates(ctx, nil)
 	if err != nil {
 		t.Fatal(err)
 	}
-	if len(tmplRes.ResourceTemplates) != 1 {
-		t.Fatalf("expected 1 resource template, got %d", len(tmplRes.ResourceTemplates))
+	if len(tmplRes.ResourceTemplates) != 2 {
+		t.Fatalf("expected 2 resource templates, got %d", len(tmplRes.ResourceTemplates))
 	}
-	if tmplRes.ResourceTemplates[0].Name != "language-spec" {
-		t.Errorf("expected template name 'language-spec', got %q", tmplRes.ResourceTemplates[0].Name)
+	tmplNames := map[string]bool{}
+	for _, tmpl := range tmplRes.ResourceTemplates {
+		tmplNames[tmpl.Name] = true
+	}
+	for _, expected := range []string{"language-spec", "scaffold"} {
+		if !tmplNames[expected] {
+			t.Errorf("expected resource template %q in listing", expected)
+		}
+	}
+}
+
+func TestScaffoldResource_NextJS(t *testing.T) {
+	cs := setupServer(t)
+	ctx := context.Background()
+
+	res, err := cs.ReadResource(ctx, &gomcp.ReadResourceParams{
+		URI: "iaf://scaffold/nextjs",
+	})
+	if err != nil {
+		t.Fatal(err)
+	}
+
+	if len(res.Contents) != 1 {
+		t.Fatalf("expected 1 content, got %d", len(res.Contents))
+	}
+	if res.Contents[0].MIMEType != "application/json" {
+		t.Errorf("expected application/json, got %q", res.Contents[0].MIMEType)
+	}
+
+	var files map[string]string
+	if err := json.Unmarshal([]byte(res.Contents[0].Text), &files); err != nil {
+		t.Fatalf("failed to parse scaffold JSON: %v", err)
+	}
+
+	for _, key := range []string{"package.json", "pages/index.js", "pages/api/health.js", "styles/globals.css", "components/Layout.js"} {
+		if _, ok := files[key]; !ok {
+			t.Errorf("expected key %q in nextjs scaffold", key)
+		}
+	}
+
+	// Verify health endpoint content.
+	if !strings.Contains(files["pages/api/health.js"], "status(200)") {
+		t.Error("expected health.js to return HTTP 200")
+	}
+}
+
+func TestScaffoldResource_HTML(t *testing.T) {
+	cs := setupServer(t)
+	ctx := context.Background()
+
+	res, err := cs.ReadResource(ctx, &gomcp.ReadResourceParams{
+		URI: "iaf://scaffold/html",
+	})
+	if err != nil {
+		t.Fatal(err)
+	}
+
+	var files map[string]string
+	if err := json.Unmarshal([]byte(res.Contents[0].Text), &files); err != nil {
+		t.Fatalf("failed to parse scaffold JSON: %v", err)
+	}
+
+	for _, key := range []string{"package.json", "server.js", "public/index.html"} {
+		if _, ok := files[key]; !ok {
+			t.Errorf("expected key %q in html scaffold", key)
+		}
+	}
+
+	// Verify server.js has a /health route.
+	if !strings.Contains(files["server.js"], "/health") {
+		t.Error("expected server.js to define /health route")
+	}
+}
+
+func TestScaffoldResource_Unknown(t *testing.T) {
+	cs := setupServer(t)
+	ctx := context.Background()
+
+	_, err := cs.ReadResource(ctx, &gomcp.ReadResourceParams{
+		URI: "iaf://scaffold/react-native",
+	})
+	if err == nil {
+		t.Fatal("expected error for unknown scaffold framework")
+	}
+	if !strings.Contains(err.Error(), "react-native") {
+		t.Errorf("expected framework name in error, got: %v", err)
 	}
 }
 
