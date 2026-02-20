@@ -89,6 +89,9 @@ func TestNewServer_RegistersAllTools(t *testing.T) {
 		"app_logs",
 		"list_apps",
 		"delete_app",
+		"add_git_credential",
+		"list_git_credentials",
+		"delete_git_credential",
 	}
 
 	toolNames := map[string]bool{}
