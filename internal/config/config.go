@@ -30,6 +30,9 @@ type Config struct {
 
 	// Routing
 	BaseDomain string `mapstructure:"base_domain"`
+
+	// Org standards
+	OrgStandardsFile string `mapstructure:"org_standards_file"`
 }
 
 // Load reads configuration from environment variables and defaults.
@@ -46,6 +49,7 @@ func Load() (*Config, error) {
 	v.SetDefault("source_store_dir", "/tmp/iaf-sources")
 	v.SetDefault("source_store_url", "http://iaf-source-store.iaf-system.svc.cluster.local")
 	v.SetDefault("base_domain", "localhost")
+	v.SetDefault("org_standards_file", "")
 
 	v.SetEnvPrefix("IAF")
 	v.SetEnvKeyReplacer(strings.NewReplacer(".", "_"))

@@ -73,14 +73,20 @@ Use the push_code tool to upload source files as a tarball. The platform stores 
 - Set "replicas" field to scale horizontally.
 - The platform manages the Kubernetes Deployment; pods are spread across available nodes.
 
+## Coding Standards
+Before writing any code, read the org-level coding standards:
+- Prompt: ` + "`coding-guide`" + ` (accepts optional ` + "`language`" + ` argument) — markdown guide merging platform and org standards
+- Resource: ` + "`iaf://org/coding-standards`" + ` — machine-readable JSON standards document
+
 ## Recommended Workflow
 1. Call ` + "`register`" + ` to get a session_id.
-2. Read the language-guide prompt for your target language to understand buildpack requirements.
-3. Write buildpack-compatible code (correct files, entry points, dependency manifests).
-4. Use push_code to upload source or provide a git URL (always include session_id).
-5. Use deploy_app to create the Application CR (always include session_id).
-6. Use app_status to monitor build and deployment progress (always include session_id).
-7. Use app_logs to debug any issues (always include session_id).
+2. Read the ` + "`coding-guide`" + ` prompt to understand org coding standards.
+3. Read the ` + "`language-guide`" + ` prompt for your target language to understand buildpack requirements.
+4. Write buildpack-compatible code following org standards (correct files, entry points, dependency manifests).
+5. Use push_code to upload source or provide a git URL (always include session_id).
+6. Use deploy_app to create the Application CR (always include session_id).
+7. Use app_status to monitor build and deployment progress (always include session_id).
+8. Use app_logs to debug any issues (always include session_id).
 `
 
 		return &gomcp.GetPromptResult{

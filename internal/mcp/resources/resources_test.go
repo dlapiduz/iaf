@@ -8,6 +8,7 @@ import (
 
 	"github.com/dlapiduz/iaf/internal/mcp/resources"
 	"github.com/dlapiduz/iaf/internal/mcp/tools"
+	"github.com/dlapiduz/iaf/internal/orgstandards"
 	gomcp "github.com/modelcontextprotocol/go-sdk/mcp"
 )
 
@@ -16,13 +17,15 @@ func setupServer(t *testing.T) *gomcp.ClientSession {
 	ctx := context.Background()
 
 	deps := &tools.Dependencies{
-		BaseDomain: "test.example.com",
+		BaseDomain:   "test.example.com",
+		OrgStandards: orgstandards.New("", nil),
 	}
 
 	server := gomcp.NewServer(&gomcp.Implementation{Name: "test", Version: "0.0.1"}, nil)
 	resources.RegisterPlatformInfo(server, deps)
 	resources.RegisterLanguageResources(server, deps)
 	resources.RegisterApplicationSpec(server, deps)
+	resources.RegisterOrgStandards(server, deps)
 
 	st, ct := gomcp.NewInMemoryTransports()
 	if _, err := server.Connect(ctx, st, nil); err != nil {
@@ -245,16 +248,16 @@ func TestListResources(t *testing.T) {
 		t.Fatal(err)
 	}
 
-	// Should have 2 static resources (platform-info and application-spec)
-	if len(res.Resources) != 2 {
-		t.Fatalf("expected 2 resources, got %d", len(res.Resources))
+	// Should have 3 static resources (platform-info, application-spec, org-coding-standards)
+	if len(res.Resources) != 3 {
+		t.Fatalf("expected 3 resources, got %d", len(res.Resources))
 	}
 
 	names := map[string]bool{}
 	for _, r := range res.Resources {
 		names[r.Name] = true
 	}
-	for _, expected := range []string{"platform-info", "application-spec"} {
+	for _, expected := range []string{"platform-info", "application-spec", "org-coding-standards"} {
 		if !names[expected] {
 			t.Errorf("expected resource %q in listing", expected)
 		}
@@ -270,5 +273,54 @@ func TestListResources(t *testing.T) {
 	}
 	if tmplRes.ResourceTemplates[0].Name != "language-spec" {
 		t.Errorf("expected template name 'language-spec', got %q", tmplRes.ResourceTemplates[0].Name)
+	}
+}
+
+func TestOrgCodingStandards(t *testing.T) {
+	cs := setupServer(t)
+	ctx := context.Background()
+
+	res, err := cs.ReadResource(ctx, &gomcp.ReadResourceParams{
+		URI: "iaf://org/coding-standards",
+	})
+	if err != nil {
+		t.Fatal(err)
+	}
+
+	if len(res.Contents) != 1 {
+		t.Fatalf("expected 1 content, got %d", len(res.Contents))
+	}
+
+	content := res.Contents[0]
+	if content.MIMEType != "application/json" {
+		t.Errorf("expected MIME type 'application/json', got %q", content.MIMEType)
+	}
+
+	var standards map[string]any
+	if err := json.Unmarshal([]byte(content.Text), &standards); err != nil {
+		t.Fatalf("failed to parse org standards JSON: %v", err)
+	}
+
+	// Verify top-level keys from the OrgStandards struct are present.
+	for _, key := range []string{"healthCheckPath", "loggingFormat", "defaultPort", "envVarNaming", "bestPractices", "perLanguage"} {
+		if _, ok := standards[key]; !ok {
+			t.Errorf("expected key %q in org standards", key)
+		}
+	}
+
+	// Default port should be 8080.
+	if standards["defaultPort"] != float64(8080) {
+		t.Errorf("expected defaultPort 8080, got %v", standards["defaultPort"])
+	}
+
+	// perLanguage should contain at least the platform defaults (go, nodejs, python).
+	perLang, ok := standards["perLanguage"].(map[string]any)
+	if !ok {
+		t.Fatal("expected perLanguage to be an object")
+	}
+	for _, lang := range []string{"go", "nodejs", "python"} {
+		if _, ok := perLang[lang]; !ok {
+			t.Errorf("expected language %q in perLanguage defaults", lang)
+		}
 	}
 }

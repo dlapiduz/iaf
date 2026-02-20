@@ -7,6 +7,7 @@ import (
 
 	"github.com/dlapiduz/iaf/internal/mcp/prompts"
 	"github.com/dlapiduz/iaf/internal/mcp/tools"
+	"github.com/dlapiduz/iaf/internal/orgstandards"
 	gomcp "github.com/modelcontextprotocol/go-sdk/mcp"
 )
 
@@ -15,12 +16,14 @@ func setupServer(t *testing.T) *gomcp.ClientSession {
 	ctx := context.Background()
 
 	deps := &tools.Dependencies{
-		BaseDomain: "test.example.com",
+		BaseDomain:   "test.example.com",
+		OrgStandards: orgstandards.New("", nil),
 	}
 
 	server := gomcp.NewServer(&gomcp.Implementation{Name: "test", Version: "0.0.1"}, nil)
 	prompts.RegisterDeployGuide(server, deps)
 	prompts.RegisterLanguageGuide(server, deps)
+	prompts.RegisterCodingGuide(server, deps)
 
 	st, ct := gomcp.NewInMemoryTransports()
 	if _, err := server.Connect(ctx, st, nil); err != nil {
@@ -194,17 +197,126 @@ func TestListPrompts(t *testing.T) {
 		t.Fatal(err)
 	}
 
-	if len(res.Prompts) != 2 {
-		t.Fatalf("expected 2 prompts, got %d", len(res.Prompts))
+	if len(res.Prompts) != 3 {
+		t.Fatalf("expected 3 prompts, got %d", len(res.Prompts))
 	}
 
 	names := map[string]bool{}
 	for _, p := range res.Prompts {
 		names[p.Name] = true
 	}
-	for _, expected := range []string{"deploy-guide", "language-guide"} {
+	for _, expected := range []string{"deploy-guide", "language-guide", "coding-guide"} {
 		if !names[expected] {
 			t.Errorf("expected prompt %q in listing", expected)
 		}
+	}
+}
+
+func TestCodingGuide_NoLanguage(t *testing.T) {
+	cs := setupServer(t)
+	ctx := context.Background()
+
+	res, err := cs.GetPrompt(ctx, &gomcp.GetPromptParams{
+		Name: "coding-guide",
+	})
+	if err != nil {
+		t.Fatal(err)
+	}
+
+	if len(res.Messages) != 1 {
+		t.Fatalf("expected 1 message, got %d", len(res.Messages))
+	}
+
+	text := res.Messages[0].Content.(*gomcp.TextContent).Text
+
+	for _, section := range []string{"Platform Defaults", "Best Practices", "Full Standards Reference", "iaf://org/coding-standards"} {
+		if !strings.Contains(text, section) {
+			t.Errorf("expected section %q in coding-guide text", section)
+		}
+	}
+}
+
+func TestCodingGuide_WithLanguage(t *testing.T) {
+	cs := setupServer(t)
+	ctx := context.Background()
+
+	res, err := cs.GetPrompt(ctx, &gomcp.GetPromptParams{
+		Name:      "coding-guide",
+		Arguments: map[string]string{"language": "go"},
+	})
+	if err != nil {
+		t.Fatal(err)
+	}
+
+	text := res.Messages[0].Content.(*gomcp.TextContent).Text
+
+	// Global standards should still be present.
+	if !strings.Contains(text, "Platform Defaults") {
+		t.Error("expected 'Platform Defaults' section in coding-guide with language")
+	}
+	// Per-language section should be present.
+	if !strings.Contains(text, "Go-Specific Standards") {
+		t.Error("expected 'Go-Specific Standards' section when language=go")
+	}
+}
+
+func TestCodingGuide_UnknownLanguage_ReturnsGlobalStandards(t *testing.T) {
+	cs := setupServer(t)
+	ctx := context.Background()
+
+	// Unknown language should not return an error — just global standards.
+	res, err := cs.GetPrompt(ctx, &gomcp.GetPromptParams{
+		Name:      "coding-guide",
+		Arguments: map[string]string{"language": "cobol"},
+	})
+	if err != nil {
+		t.Fatalf("unexpected error for unknown language: %v", err)
+	}
+
+	text := res.Messages[0].Content.(*gomcp.TextContent).Text
+	if !strings.Contains(text, "Platform Defaults") {
+		t.Error("expected global standards even for unknown language")
+	}
+	// No per-language section should appear.
+	if strings.Contains(text, "Cobol-Specific Standards") {
+		t.Error("did not expect language-specific section for unknown language")
+	}
+}
+
+func TestCodingGuide_LanguageAlias(t *testing.T) {
+	cs := setupServer(t)
+	ctx := context.Background()
+
+	res, err := cs.GetPrompt(ctx, &gomcp.GetPromptParams{
+		Name:      "coding-guide",
+		Arguments: map[string]string{"language": "golang"},
+	})
+	if err != nil {
+		t.Fatal(err)
+	}
+
+	text := res.Messages[0].Content.(*gomcp.TextContent).Text
+	if !strings.Contains(text, "Go-Specific Standards") {
+		t.Error("expected 'Go-Specific Standards' for alias 'golang'")
+	}
+}
+
+func TestDeployGuide_MentionsCodingGuide(t *testing.T) {
+	cs := setupServer(t)
+	ctx := context.Background()
+
+	res, err := cs.GetPrompt(ctx, &gomcp.GetPromptParams{
+		Name: "deploy-guide",
+	})
+	if err != nil {
+		t.Fatal(err)
+	}
+
+	text := res.Messages[0].Content.(*gomcp.TextContent).Text
+	if !strings.Contains(text, "coding-guide") {
+		t.Error("deploy-guide should reference the coding-guide prompt")
+	}
+	if !strings.Contains(text, "iaf://org/coding-standards") {
+		t.Error("deploy-guide should reference iaf://org/coding-standards resource")
 	}
 }
