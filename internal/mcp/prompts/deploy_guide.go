@@ -78,6 +78,13 @@ Before writing any code, read the org-level coding standards:
 - Prompt: ` + "`coding-guide`" + ` (accepts optional ` + "`language`" + ` argument) — markdown guide merging platform and org standards
 - Resource: ` + "`iaf://org/coding-standards`" + ` — machine-readable JSON standards document
 
+## Git-Based Deployment with GitHub
+When your code lives in a GitHub repository:
+- Call ` + "`setup_github_repo`" + ` to create the repo, apply branch protection, and commit a CI template.
+- Read the ` + "`github-guide`" + ` prompt for branch naming, commit format, PR, and review workflow.
+- Read ` + "`iaf://org/github-standards`" + ` for the machine-readable GitHub standards document.
+- Use ` + "`deploy_app`" + ` with ` + "`git_url`" + ` set to the clone URL returned by ` + "`setup_github_repo`" + `.
+
 ## Recommended Workflow
 1. Call ` + "`register`" + ` to get a session_id.
 2. Read the ` + "`coding-guide`" + ` prompt to understand org coding standards.

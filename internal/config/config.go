@@ -33,6 +33,10 @@ type Config struct {
 
 	// Org standards
 	OrgStandardsFile string `mapstructure:"org_standards_file"`
+
+	// GitHub integration (optional — GitHub features are disabled when token is empty)
+	GitHubToken string `mapstructure:"github_token"`
+	GitHubOrg   string `mapstructure:"github_org"`
 }
 
 // Load reads configuration from environment variables and defaults.
@@ -50,6 +54,8 @@ func Load() (*Config, error) {
 	v.SetDefault("source_store_url", "http://iaf-source-store.iaf-system.svc.cluster.local")
 	v.SetDefault("base_domain", "localhost")
 	v.SetDefault("org_standards_file", "")
+	v.SetDefault("github_token", "")
+	v.SetDefault("github_org", "")
 
 	v.SetEnvPrefix("IAF")
 	v.SetEnvKeyReplacer(strings.NewReplacer(".", "_"))

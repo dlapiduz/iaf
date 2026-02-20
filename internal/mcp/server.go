@@ -2,6 +2,7 @@ package mcp
 
 import (
 	"github.com/dlapiduz/iaf/internal/auth"
+	iafgithub "github.com/dlapiduz/iaf/internal/github"
 	"github.com/dlapiduz/iaf/internal/mcp/prompts"
 	"github.com/dlapiduz/iaf/internal/mcp/resources"
 	"github.com/dlapiduz/iaf/internal/mcp/tools"
@@ -48,8 +49,9 @@ CODING STANDARDS:
 
 // NewServer creates and configures the MCP server with all tools.
 // If loader is non-nil, org standards are served from that loader; otherwise platform defaults are used.
+// ghClient may be nil — GitHub tools are omitted when it is not set.
 // If clientset is non-nil, app_logs will stream real logs from pods.
-func NewServer(k8sClient client.Client, sessions *auth.SessionStore, store *sourcestore.Store, baseDomain string, loader *orgstandards.Loader, clientset ...kubernetes.Interface) *gomcp.Server {
+func NewServer(k8sClient client.Client, sessions *auth.SessionStore, store *sourcestore.Store, baseDomain string, loader *orgstandards.Loader, ghClient iafgithub.Client, ghOrg, ghToken string, clientset ...kubernetes.Interface) *gomcp.Server {
 	server := gomcp.NewServer(
 		&gomcp.Implementation{
 			Name:    "iaf",
@@ -66,6 +68,9 @@ func NewServer(k8sClient client.Client, sessions *auth.SessionStore, store *sour
 		BaseDomain:   baseDomain,
 		Sessions:     sessions,
 		OrgStandards: loader,
+		GitHub:       ghClient,
+		GitHubOrg:    ghOrg,
+		GitHubToken:  ghToken,
 	}
 
 	tools.RegisterRegisterTool(server, deps)
@@ -90,6 +95,13 @@ func NewServer(k8sClient client.Client, sessions *auth.SessionStore, store *sour
 	resources.RegisterApplicationSpec(server, deps)
 	resources.RegisterOrgStandards(server, deps)
 	resources.RegisterScaffoldResource(server, deps)
+
+	// GitHub components — registered only when a token and org are configured.
+	if deps.GitHub != nil {
+		tools.RegisterSetupGithubRepo(server, deps)
+		resources.RegisterGitHubStandards(server, deps)
+		prompts.RegisterGitHubGuide(server, deps)
+	}
 
 	return server
 }

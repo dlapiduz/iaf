@@ -8,6 +8,7 @@ import (
 
 	"github.com/dlapiduz/iaf/internal/auth"
 	"github.com/dlapiduz/iaf/internal/config"
+	iafgithub "github.com/dlapiduz/iaf/internal/github"
 	"github.com/dlapiduz/iaf/internal/k8s"
 	iafmcp "github.com/dlapiduz/iaf/internal/mcp"
 	"github.com/dlapiduz/iaf/internal/orgstandards"
@@ -50,7 +51,12 @@ func main() {
 	orgLoader := orgstandards.New(cfg.OrgStandardsFile, logger)
 	go orgLoader.Start(ctx)
 
-	server := iafmcp.NewServer(k8sClient, sessions, store, cfg.BaseDomain, orgLoader)
+	var ghClient iafgithub.Client
+	if cfg.GitHubToken != "" && cfg.GitHubOrg != "" {
+		ghClient = iafgithub.NewHTTPClient(cfg.GitHubToken)
+	}
+
+	server := iafmcp.NewServer(k8sClient, sessions, store, cfg.BaseDomain, orgLoader, ghClient, cfg.GitHubOrg, cfg.GitHubToken)
 
 	logger.Info("starting MCP server", "transport", cfg.MCPTransport)
 
