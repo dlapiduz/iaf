@@ -6,6 +6,7 @@ import (
 
 	iafv1alpha1 "github.com/dlapiduz/iaf/api/v1alpha1"
 	"github.com/dlapiduz/iaf/internal/auth"
+	iafgithub "github.com/dlapiduz/iaf/internal/github"
 	"github.com/dlapiduz/iaf/internal/orgstandards"
 	"github.com/dlapiduz/iaf/internal/sourcestore"
 	"sigs.k8s.io/controller-runtime/pkg/client"
@@ -18,6 +19,10 @@ type Dependencies struct {
 	BaseDomain   string
 	Sessions     *auth.SessionStore
 	OrgStandards *orgstandards.Loader
+	// GitHub fields — all three must be set for GitHub tools to be registered.
+	GitHub      iafgithub.Client
+	GitHubToken string // stored but never surfaced in output or logs
+	GitHubOrg   string
 }
 
 // ResolveNamespace looks up the session and returns its namespace.

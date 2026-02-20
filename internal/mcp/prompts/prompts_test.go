@@ -5,11 +5,27 @@ import (
 	"strings"
 	"testing"
 
+	iafgithub "github.com/dlapiduz/iaf/internal/github"
 	"github.com/dlapiduz/iaf/internal/mcp/prompts"
 	"github.com/dlapiduz/iaf/internal/mcp/tools"
 	"github.com/dlapiduz/iaf/internal/orgstandards"
 	gomcp "github.com/modelcontextprotocol/go-sdk/mcp"
 )
+
+func connectServer(t *testing.T, ctx context.Context, server *gomcp.Server) *gomcp.ClientSession {
+	t.Helper()
+	st, ct := gomcp.NewInMemoryTransports()
+	if _, err := server.Connect(ctx, st, nil); err != nil {
+		t.Fatal(err)
+	}
+	client := gomcp.NewClient(&gomcp.Implementation{Name: "test-client", Version: "0.0.1"}, nil)
+	cs, err := client.Connect(ctx, ct, nil)
+	if err != nil {
+		t.Fatal(err)
+	}
+	t.Cleanup(func() { cs.Close() })
+	return cs
+}
 
 func setupServer(t *testing.T) *gomcp.ClientSession {
 	t.Helper()
@@ -26,17 +42,25 @@ func setupServer(t *testing.T) *gomcp.ClientSession {
 	prompts.RegisterCodingGuide(server, deps)
 	prompts.RegisterScaffoldGuide(server, deps)
 
-	st, ct := gomcp.NewInMemoryTransports()
-	if _, err := server.Connect(ctx, st, nil); err != nil {
-		t.Fatal(err)
+	return connectServer(t, ctx, server)
+}
+
+func setupGitHubPromptServer(t *testing.T) *gomcp.ClientSession {
+	t.Helper()
+	ctx := context.Background()
+
+	deps := &tools.Dependencies{
+		BaseDomain: "test.example.com",
+		GitHub:     &iafgithub.MockClient{},
+		GitHubOrg:  "test-org",
 	}
-	client := gomcp.NewClient(&gomcp.Implementation{Name: "test-client", Version: "0.0.1"}, nil)
-	cs, err := client.Connect(ctx, ct, nil)
-	if err != nil {
-		t.Fatal(err)
-	}
-	t.Cleanup(func() { cs.Close() })
-	return cs
+
+	server := gomcp.NewServer(&gomcp.Implementation{Name: "test", Version: "0.0.1"}, nil)
+	prompts.RegisterDeployGuide(server, deps)
+	prompts.RegisterLanguageGuide(server, deps)
+	prompts.RegisterGitHubGuide(server, deps)
+
+	return connectServer(t, ctx, server)
 }
 
 func TestDeployGuide(t *testing.T) {
@@ -373,5 +397,92 @@ func TestScaffoldGuide_NoFramework(t *testing.T) {
 		if !strings.Contains(text, uri) {
 			t.Errorf("expected %q in scaffold-guide with no framework argument", uri)
 		}
+	}
+}
+
+func TestGitHubGuide_DefaultWorkflow(t *testing.T) {
+	cs := setupGitHubPromptServer(t)
+	ctx := context.Background()
+
+	res, err := cs.GetPrompt(ctx, &gomcp.GetPromptParams{
+		Name: "github-guide",
+	})
+	if err != nil {
+		t.Fatal(err)
+	}
+
+	if len(res.Messages) != 1 {
+		t.Fatalf("expected 1 message, got %d", len(res.Messages))
+	}
+
+	text := res.Messages[0].Content.(*gomcp.TextContent).Text
+	if !strings.Contains(text, "solo-agent") {
+		t.Error("expected default workflow 'solo-agent' in guide text")
+	}
+	if !strings.Contains(text, "setup_github_repo") {
+		t.Error("expected 'setup_github_repo' in guide text")
+	}
+	if !strings.Contains(text, "deploy_app") {
+		t.Error("expected 'deploy_app' in guide text")
+	}
+	if !strings.Contains(text, "test.example.com") {
+		t.Error("expected base domain in guide text")
+	}
+}
+
+func TestGitHubGuide_MultiAgentWorkflow(t *testing.T) {
+	cs := setupGitHubPromptServer(t)
+	ctx := context.Background()
+
+	res, err := cs.GetPrompt(ctx, &gomcp.GetPromptParams{
+		Name:      "github-guide",
+		Arguments: map[string]string{"workflow": "multi-agent"},
+	})
+	if err != nil {
+		t.Fatal(err)
+	}
+
+	text := res.Messages[0].Content.(*gomcp.TextContent).Text
+	if !strings.Contains(text, "multi-agent") {
+		t.Error("expected 'multi-agent' in guide text")
+	}
+	if !strings.Contains(text, "Agent A") && !strings.Contains(text, "Agent B") {
+		t.Error("expected agent collaboration instructions in multi-agent guide")
+	}
+}
+
+func TestGitHubGuide_HumanReviewWorkflow(t *testing.T) {
+	cs := setupGitHubPromptServer(t)
+	ctx := context.Background()
+
+	res, err := cs.GetPrompt(ctx, &gomcp.GetPromptParams{
+		Name:      "github-guide",
+		Arguments: map[string]string{"workflow": "human-review"},
+	})
+	if err != nil {
+		t.Fatal(err)
+	}
+
+	text := res.Messages[0].Content.(*gomcp.TextContent).Text
+	if !strings.Contains(text, "human") {
+		t.Error("expected 'human' in human-review guide text")
+	}
+}
+
+func TestGitHubGuide_ListedWhenConfigured(t *testing.T) {
+	cs := setupGitHubPromptServer(t)
+	ctx := context.Background()
+
+	res, err := cs.ListPrompts(ctx, nil)
+	if err != nil {
+		t.Fatal(err)
+	}
+
+	names := map[string]bool{}
+	for _, p := range res.Prompts {
+		names[p.Name] = true
+	}
+	if !names["github-guide"] {
+		t.Error("expected 'github-guide' to be listed when GitHub is configured")
 	}
 }

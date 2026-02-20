@@ -11,6 +11,7 @@ import (
 	"github.com/dlapiduz/iaf/internal/api"
 	"github.com/dlapiduz/iaf/internal/auth"
 	"github.com/dlapiduz/iaf/internal/config"
+	iafgithub "github.com/dlapiduz/iaf/internal/github"
 	"github.com/dlapiduz/iaf/internal/k8s"
 	iafmcp "github.com/dlapiduz/iaf/internal/mcp"
 	"github.com/dlapiduz/iaf/internal/orgstandards"
@@ -78,8 +79,14 @@ func main() {
 	orgLoader := orgstandards.New(cfg.OrgStandardsFile, logger)
 	go orgLoader.Start(ctx)
 
+	// Create GitHub client if configured.
+	var ghClient iafgithub.Client
+	if cfg.GitHubToken != "" && cfg.GitHubOrg != "" {
+		ghClient = iafgithub.NewHTTPClient(cfg.GitHubToken)
+	}
+
 	// Create MCP server and mount as Streamable HTTP endpoint
-	mcpServer := iafmcp.NewServer(k8sClient, sessions, store, cfg.BaseDomain, orgLoader, clientset)
+	mcpServer := iafmcp.NewServer(k8sClient, sessions, store, cfg.BaseDomain, orgLoader, ghClient, cfg.GitHubOrg, cfg.GitHubToken, clientset)
 	mcpHandler := gomcp.NewStreamableHTTPHandler(func(r *http.Request) *gomcp.Server {
 		return mcpServer
 	}, &gomcp.StreamableHTTPOptions{Stateless: true})
