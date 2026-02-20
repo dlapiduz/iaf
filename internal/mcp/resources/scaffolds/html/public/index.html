@@ -1,0 +1,54 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+  <title>My App</title>
+  <script src="https://cdn.tailwindcss.com"></script>
+  <link rel="stylesheet" href="/styles.css" />
+  <script>
+    tailwind.config = {
+      theme: {
+        extend: {
+          colors: {
+            primary: { DEFAULT: '#2563eb', hover: '#1d4ed8' }
+          },
+          fontFamily: {
+            sans: ['Inter', 'ui-sans-serif', 'system-ui', 'sans-serif']
+          }
+        }
+      }
+    }
+  </script>
+</head>
+<body class="min-h-screen flex flex-col bg-gray-50 font-sans text-gray-900">
+
+  <!-- Header -->
+  <header class="bg-white border-b border-gray-200 shadow-sm">
+    <div class="max-w-5xl mx-auto px-8 py-4 flex items-center justify-between">
+      <a href="/" class="text-lg font-semibold hover:text-blue-600">My App</a>
+      <nav class="flex gap-6 text-sm">
+        <a href="/" class="text-gray-600 hover:text-gray-900">Home</a>
+      </nav>
+    </div>
+  </header>
+
+  <!-- Main content -->
+  <main class="flex-1 max-w-5xl mx-auto w-full px-8 py-8">
+    <div class="max-w-2xl">
+      <h1 class="text-3xl font-bold text-gray-900 mb-4">Welcome</h1>
+      <p class="text-gray-600">
+        Your application is running. Edit
+        <code class="bg-gray-100 px-1 rounded">public/index.html</code> to get
+        started.
+      </p>
+    </div>
+  </main>
+
+  <!-- Footer -->
+  <footer class="bg-white border-t border-gray-200 text-center text-sm text-gray-500 py-4">
+    Built with IAF
+  </footer>
+
+</body>
+</html>

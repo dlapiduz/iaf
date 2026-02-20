@@ -83,11 +83,13 @@ func NewServer(k8sClient client.Client, sessions *auth.SessionStore, store *sour
 	prompts.RegisterDeployGuide(server, deps)
 	prompts.RegisterLanguageGuide(server, deps)
 	prompts.RegisterCodingGuide(server, deps)
+	prompts.RegisterScaffoldGuide(server, deps)
 
 	resources.RegisterPlatformInfo(server, deps)
 	resources.RegisterLanguageResources(server, deps)
 	resources.RegisterApplicationSpec(server, deps)
 	resources.RegisterOrgStandards(server, deps)
+	resources.RegisterScaffoldResource(server, deps)
 
 	return server
 }

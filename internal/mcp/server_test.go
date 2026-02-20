@@ -110,7 +110,7 @@ func TestNewServer_RegistersAllPrompts(t *testing.T) {
 		t.Fatal(err)
 	}
 
-	expectedPrompts := []string{"deploy-guide", "language-guide", "coding-guide"}
+	expectedPrompts := []string{"deploy-guide", "language-guide", "coding-guide", "scaffold-guide"}
 	promptNames := map[string]bool{}
 	for _, p := range res.Prompts {
 		promptNames[p.Name] = true
@@ -148,7 +148,7 @@ func TestNewServer_RegistersAllResources(t *testing.T) {
 		t.Fatal(err)
 	}
 
-	expectedTemplates := []string{"language-spec"}
+	expectedTemplates := []string{"language-spec", "scaffold"}
 	templateNames := map[string]bool{}
 	for _, tmpl := range tmplRes.ResourceTemplates {
 		templateNames[tmpl.Name] = true

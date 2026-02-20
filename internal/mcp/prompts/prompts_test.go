@@ -24,6 +24,7 @@ func setupServer(t *testing.T) *gomcp.ClientSession {
 	prompts.RegisterDeployGuide(server, deps)
 	prompts.RegisterLanguageGuide(server, deps)
 	prompts.RegisterCodingGuide(server, deps)
+	prompts.RegisterScaffoldGuide(server, deps)
 
 	st, ct := gomcp.NewInMemoryTransports()
 	if _, err := server.Connect(ctx, st, nil); err != nil {
@@ -197,15 +198,15 @@ func TestListPrompts(t *testing.T) {
 		t.Fatal(err)
 	}
 
-	if len(res.Prompts) != 3 {
-		t.Fatalf("expected 3 prompts, got %d", len(res.Prompts))
+	if len(res.Prompts) != 4 {
+		t.Fatalf("expected 4 prompts, got %d", len(res.Prompts))
 	}
 
 	names := map[string]bool{}
 	for _, p := range res.Prompts {
 		names[p.Name] = true
 	}
-	for _, expected := range []string{"deploy-guide", "language-guide", "coding-guide"} {
+	for _, expected := range []string{"deploy-guide", "language-guide", "coding-guide", "scaffold-guide"} {
 		if !names[expected] {
 			t.Errorf("expected prompt %q in listing", expected)
 		}
@@ -318,5 +319,59 @@ func TestDeployGuide_MentionsCodingGuide(t *testing.T) {
 	}
 	if !strings.Contains(text, "iaf://org/coding-standards") {
 		t.Error("deploy-guide should reference iaf://org/coding-standards resource")
+	}
+}
+
+func TestScaffoldGuide_WithFramework(t *testing.T) {
+	cs := setupServer(t)
+	ctx := context.Background()
+
+	for _, framework := range []string{"nextjs", "html"} {
+		t.Run(framework, func(t *testing.T) {
+			res, err := cs.GetPrompt(ctx, &gomcp.GetPromptParams{
+				Name:      "scaffold-guide",
+				Arguments: map[string]string{"framework": framework},
+			})
+			if err != nil {
+				t.Fatal(err)
+			}
+
+			if len(res.Messages) != 1 {
+				t.Fatalf("expected 1 message, got %d", len(res.Messages))
+			}
+
+			text := res.Messages[0].Content.(*gomcp.TextContent).Text
+
+			if !strings.Contains(text, "iaf://scaffold/"+framework) {
+				t.Errorf("expected scaffold URI in text for framework %q", framework)
+			}
+			if !strings.Contains(text, "push_code") {
+				t.Error("expected 'push_code' instructions in scaffold-guide")
+			}
+			if !strings.Contains(text, "test.example.com") {
+				t.Error("expected base domain in scaffold-guide")
+			}
+		})
+	}
+}
+
+func TestScaffoldGuide_NoFramework(t *testing.T) {
+	cs := setupServer(t)
+	ctx := context.Background()
+
+	res, err := cs.GetPrompt(ctx, &gomcp.GetPromptParams{
+		Name: "scaffold-guide",
+	})
+	if err != nil {
+		t.Fatal(err)
+	}
+
+	text := res.Messages[0].Content.(*gomcp.TextContent).Text
+
+	// Both scaffolds should be described.
+	for _, uri := range []string{"iaf://scaffold/nextjs", "iaf://scaffold/html"} {
+		if !strings.Contains(text, uri) {
+			t.Errorf("expected %q in scaffold-guide with no framework argument", uri)
+		}
 	}
 }
