@@ -26,16 +26,14 @@ func RegisterScaffoldGuide(server *gomcp.Server, deps *tools.Dependencies) {
 		framework := strings.ToLower(strings.TrimSpace(req.Params.Arguments["framework"]))
 
 		var sb strings.Builder
-		sb.WriteString("# UI Scaffold Guide for IAF\n\n")
-
-		sb.WriteString("## When to Use a Scaffold\n")
-		sb.WriteString("Start from a scaffold when you need a complete, deployment-ready UI with:\n")
-		sb.WriteString("- A navigation shell (header + footer)\n")
-		sb.WriteString("- A health endpoint at `/health` (required by IAF for readiness probes)\n")
-		sb.WriteString("- Tailwind CSS styling with org design tokens\n")
-		sb.WriteString("- A `package.json` with a `start` script the buildpack can detect\n\n")
-
-		sb.WriteString("## Available Frameworks\n\n")
+		sb.WriteString("# UI Scaffold Guide for IAF\n\n" +
+			"## When to Use a Scaffold\n" +
+			"Start from a scaffold when you need a complete, deployment-ready UI with:\n" +
+			"- A navigation shell (header + footer)\n" +
+			"- A health endpoint at `/health` (required by IAF for readiness probes)\n" +
+			"- Tailwind CSS styling with org design tokens\n" +
+			"- A `package.json` with a `start` script the buildpack can detect\n\n" +
+			"## Available Frameworks\n\n")
 
 		switch framework {
 		case "nextjs":
@@ -49,13 +47,13 @@ func RegisterScaffoldGuide(server *gomcp.Server, deps *tools.Dependencies) {
 			sb.WriteString(htmlGuide(deps.BaseDomain))
 		}
 
-		sb.WriteString("\n## Deploying on IAF\n\n")
-		sb.WriteString("After customising the scaffold:\n\n")
-		sb.WriteString("```\n")
-		sb.WriteString("1. push_code  session_id=<your-session> name=<app-name> files=<scaffold-file-map>\n")
-		sb.WriteString("2. deploy_app session_id=<your-session> name=<app-name>\n")
-		sb.WriteString("3. app_status session_id=<your-session> name=<app-name>  # wait for Running\n")
-		sb.WriteString("```\n\n")
+		sb.WriteString("\n## Deploying on IAF\n\n" +
+			"After customising the scaffold:\n\n" +
+			"```\n" +
+			"1. push_code  session_id=<your-session> name=<app-name> files=<scaffold-file-map>\n" +
+			"2. deploy_app session_id=<your-session> name=<app-name>\n" +
+			"3. app_status session_id=<your-session> name=<app-name>  # wait for Running\n" +
+			"```\n\n")
 		sb.WriteString(fmt.Sprintf("Your app will be available at `http://<app-name>.%s` once Running.\n", deps.BaseDomain))
 
 		return &gomcp.GetPromptResult{
