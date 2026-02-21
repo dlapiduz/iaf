@@ -1,0 +1,18 @@
+---
+# Role in the iaf-system namespace giving the controller read access to operator-created
+# data source credential Secrets. A namespace-scoped Role is intentional here: it grants
+# the minimum required privilege (get/list on Secrets in iaf-system only), not a
+# cluster-wide ClusterRole permission on all Secrets.
+apiVersion: rbac.authorization.k8s.io/v1
+kind: Role
+metadata:
+  name: iaf-controller-iaf-system
+  namespace: iaf-system
+rules:
+- apiGroups:
+  - ""
+  resources:
+  - secrets
+  verbs:
+  - get
+  - list

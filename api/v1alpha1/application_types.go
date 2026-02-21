@@ -61,6 +61,22 @@ type ApplicationSpec struct {
 	// Set tls.enabled=false to opt out and serve over HTTP only.
 	// +optional
 	TLS *TLSConfig `json:"tls,omitempty"`
+
+	// AttachedDataSources lists data sources attached to this application.
+	// The controller injects credentials from each DataSource as env vars into the Deployment.
+	// Use the attach_data_source MCP tool to add entries here.
+	// +optional
+	AttachedDataSources []AttachedDataSource `json:"attachedDataSources,omitempty"`
+}
+
+// AttachedDataSource records a DataSource attached to an Application.
+type AttachedDataSource struct {
+	// DataSourceName is the name of the cluster-scoped DataSource CR.
+	DataSourceName string `json:"dataSourceName"`
+
+	// SecretName is the name of the credential Secret copied into the session namespace.
+	// This Secret is owned by the Application CR and is deleted when the application is deleted.
+	SecretName string `json:"secretName"`
 }
 
 // GitSource specifies a git repository source for building.

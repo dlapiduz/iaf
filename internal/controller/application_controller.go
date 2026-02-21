@@ -8,6 +8,7 @@ import (
 
 	iafv1alpha1 "github.com/dlapiduz/iaf/api/v1alpha1"
 	iafk8s "github.com/dlapiduz/iaf/internal/k8s"
+	iafvalidation "github.com/dlapiduz/iaf/internal/validation"
 	appsv1 "k8s.io/api/apps/v1"
 	corev1 "k8s.io/api/core/v1"
 	apierrors "k8s.io/apimachinery/pkg/api/errors"
@@ -18,11 +19,13 @@ import (
 	ctrl "sigs.k8s.io/controller-runtime"
 	"sigs.k8s.io/controller-runtime/pkg/client"
 	"sigs.k8s.io/controller-runtime/pkg/handler"
+	"sigs.k8s.io/controller-runtime/pkg/log"
 )
 
 // +kubebuilder:rbac:groups=iaf.io,resources=applications,verbs=get;list;watch;create;update;patch;delete
 // +kubebuilder:rbac:groups=iaf.io,resources=applications/status,verbs=get;update;patch
 // +kubebuilder:rbac:groups=iaf.io,resources=applications/finalizers,verbs=update
+// +kubebuilder:rbac:groups=iaf.io,resources=datasources,verbs=get;list;watch
 // +kubebuilder:rbac:groups=apps,resources=deployments,verbs=get;list;watch;create;update;patch;delete
 // +kubebuilder:rbac:groups="",resources=services,verbs=get;list;watch;create;update;patch;delete
 // +kubebuilder:rbac:groups="",resources=secrets,verbs=create;get;list;delete
@@ -178,6 +181,37 @@ func (r *ApplicationReconciler) reconcileDeployment(ctx context.Context, app *ia
 	envVars := make([]corev1.EnvVar, 0, len(app.Spec.Env))
 	for _, e := range app.Spec.Env {
 		envVars = append(envVars, corev1.EnvVar{Name: e.Name, Value: e.Value})
+	}
+
+	// Inject env vars from attached data sources.
+	logger := log.FromContext(ctx)
+	for _, ads := range app.Spec.AttachedDataSources {
+		var ds iafv1alpha1.DataSource
+		if err := r.Get(ctx, types.NamespacedName{Name: ads.DataSourceName}, &ds); err != nil {
+			if apierrors.IsNotFound(err) {
+				// DataSource may have been deleted after attachment — skip gracefully.
+				logger.V(1).Info("DataSource not found, skipping env injection", "datasource", ads.DataSourceName)
+				continue
+			}
+			return nil, fmt.Errorf("getting datasource %q: %w", ads.DataSourceName, err)
+		}
+		for secretKey, envVarName := range ds.Spec.EnvVarMapping {
+			if err := iafvalidation.ValidateEnvVarName(envVarName); err != nil {
+				// Defence-in-depth: skip invalid env var names added by misconfigured operators.
+				logger.V(1).Info("invalid env var name in DataSource mapping, skipping",
+					"datasource", ads.DataSourceName, "envVarName", envVarName)
+				continue
+			}
+			envVars = append(envVars, corev1.EnvVar{
+				Name: envVarName,
+				ValueFrom: &corev1.EnvVarSource{
+					SecretKeyRef: &corev1.SecretKeySelector{
+						LocalObjectReference: corev1.LocalObjectReference{Name: ads.SecretName},
+						Key:                 secretKey,
+					},
+				},
+			})
+		}
 	}
 
 	desired := &appsv1.Deployment{

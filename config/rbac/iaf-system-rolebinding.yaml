@@ -1,0 +1,16 @@
+---
+# RoleBinding granting the IAF controller ServiceAccount read access to Secrets
+# in iaf-system (for copying data source credentials into session namespaces).
+apiVersion: rbac.authorization.k8s.io/v1
+kind: RoleBinding
+metadata:
+  name: iaf-controller-iaf-system
+  namespace: iaf-system
+roleRef:
+  apiGroup: rbac.authorization.k8s.io
+  kind: Role
+  name: iaf-controller-iaf-system
+subjects:
+- kind: ServiceAccount
+  name: default
+  namespace: iaf-system
