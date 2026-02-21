@@ -1,33 +1,58 @@
-# Connecting Claude Code to IAF
+# Claude Code Setup Guide
 
-This guide walks through getting a Claude Code instance connected to the IAF platform so it can deploy and manage applications on Kubernetes.
-
-## Prerequisites
-
-- IAF is deployed and healthy in your cluster (see [Operator Guide](operator-guide.md))
-- The platform is reachable at `http://iaf.localhost` (or your configured domain)
-- You have a Bearer token (default dev token: `iaf-dev-key`)
-
-Verify the platform is up:
-
-```bash
-curl http://iaf.localhost/health
-# {"status":"ok"}
-```
+> **Who this is for:** A human who has access to a running IAF platform and wants to configure their Claude Code instance to use it.
+>
+> This is *not* documentation for Claude itself — Claude receives its own instructions automatically from the platform once connected. This guide is for you, the human doing the setup.
 
 ---
 
-## Step 1: Add the MCP server to Claude Code
+## What you're setting up
 
-Run this command to register the IAF MCP server:
+Once configured, your Claude Code instance will have access to IAF's MCP tools. You'll be able to give Claude natural language instructions like:
+
+```
+> Create a Go web server and deploy it as "hello-go"
+> What's the status of my apps?
+> Show me the logs for hello-go
+```
+
+Claude will handle everything: writing code, deploying containers, monitoring builds, and reporting the live URL. You don't need to know Kubernetes.
+
+---
+
+## Prerequisites
+
+- Claude Code is installed on your machine ([install guide](https://docs.anthropic.com/claude-code))
+- IAF is deployed and reachable (ask your platform operator for the URL and token)
+- The platform is healthy — verify with:
+  ```bash
+  curl http://iaf.localhost/health
+  # should return: {"status":"ok"}
+  ```
+
+---
+
+## Step 1 — Register the MCP server
+
+Run this once to add IAF to Claude Code:
 
 ```bash
 claude mcp add --transport http iaf http://iaf.localhost/mcp
 ```
 
-## Step 2: Add the auth header
+Replace `http://iaf.localhost/mcp` with your platform's URL if it's hosted elsewhere.
 
-Every request to the MCP endpoint requires a Bearer token. Open your Claude Code MCP config — either `.mcp.json` in your project directory or `~/.claude.json` — and add the `headers` field:
+---
+
+## Step 2 — Add your auth token
+
+The platform requires a Bearer token on every request. Open your MCP config file and add the `headers` field.
+
+The config file is either:
+- `.mcp.json` in your current project directory (project-scoped), or
+- `~/.claude.json` (global, applies to all projects)
+
+Edit the `iaf` entry to look like this:
 
 ```json
 {
@@ -43,9 +68,13 @@ Every request to the MCP endpoint requires a Bearer token. Open your Claude Code
 }
 ```
 
-Replace `iaf-dev-key` with your token if the operator has configured a different one.
+Replace `iaf-dev-key` with the token your operator gave you.
 
-## Step 3: Verify the connection
+> **Without this header, every tool call will fail with an authentication error.** This is the most common setup mistake.
+
+---
+
+## Step 3 — Verify the connection
 
 Start a new Claude Code session and run:
 
@@ -53,91 +82,69 @@ Start a new Claude Code session and run:
 > /mcp
 ```
 
-You should see `iaf` listed with all available tools (`register`, `push_code`, `deploy_app`, etc.).
+You should see `iaf` listed with a set of tools including `register`, `push_code`, `deploy_app`, and others. If it doesn't appear, check the troubleshooting section below.
 
 ---
 
-## Step 4: Start using IAF
+## Step 4 — Deploy something
 
-The first thing Claude must do in any session is call `register` to get a `session_id`. All other tools require it. Claude will do this automatically when you ask it to deploy something — just give it a task:
+Just ask Claude in plain English. A good first test:
 
 ```
-> Create a Go hello world web server and deploy it as "hello-go"
+> Deploy nginx as "test-app" on port 80
 ```
 
-Claude will:
-1. Call `register` to create an isolated session (your own Kubernetes namespace)
-2. Write the Go source code
-3. Call `push_code` to upload it — the platform auto-detects Go and builds a container
-4. Poll `app_status` until the build completes
-5. Report the URL once the app is running
+Claude will call the IAF tools automatically. You'll see it create a session, deploy the app, and return a URL. The whole thing takes about 30 seconds for a pre-built image.
+
+For a source code build (longer, ~2 minutes):
+
+```
+> Create a simple Go web server that returns "hello world" on / and deploy it as "hello-go"
+```
+
+---
+
+## How it works behind the scenes
+
+When Claude connects to IAF, the platform automatically sends it:
+
+- **Server instructions** — a system-level briefing telling Claude what tools are available, that it must call `register` first, and key constraints (default port 8080, etc.)
+- **Prompts** — on-demand guides Claude can read (e.g. `deploy-guide`, `language-guide` for Go/Node.js/Python)
+- **Resources** — structured data Claude can read (e.g. `iaf://platform` for platform config, `iaf://org/coding-standards` for your org's coding rules)
+
+You don't need to set any of this up — it's built into the platform. Claude learns how to use IAF the moment it connects.
 
 ---
 
 ## What Claude can do
 
-Once connected, Claude has access to these tools:
-
-| Tool | Description |
+| Task | What to say |
 |------|-------------|
-| `register` | Creates a session — Claude calls this automatically |
-| `push_code` | Upload source files and auto-build/deploy (Go, Node.js, Python, Java, Ruby) |
-| `deploy_app` | Deploy from a container image or git repository |
-| `app_status` | Check build/deploy progress and get the app URL |
-| `app_logs` | View application logs or build logs |
-| `list_apps` | List all deployed apps in the session |
-| `delete_app` | Delete an app and all its resources |
-| `add_git_credential` | Store a git credential for private repo access |
-| `list_git_credentials` | List stored credentials (no secrets returned) |
-| `delete_git_credential` | Remove a stored credential |
-| `list_data_sources` | Discover platform data sources (databases, APIs) |
-| `get_data_source` | Get details about a data source |
-| `attach_data_source` | Attach a data source — injects credentials as env vars into the app |
-
----
-
-## Example prompts
-
-### Deploy from source
-
-```
-Create a Python Flask app that returns {"status": "ok"} on GET /health and deploy it as "health-api".
-```
-
-### Deploy a container image
-
-```
-Deploy nginx:alpine as "web" on port 80.
-```
-
-### Deploy from a private git repo
-
-```
-Store my GitHub token ghp_xxxx for https://github.com as "github-creds",
-then deploy https://github.com/myorg/myapp as "myapp".
-```
-
-### Check on apps
-
-```
-What apps are running? Show me the logs for hello-go.
-```
-
-### Use a data source
-
-```
-List available data sources, then attach prod-postgres to my app "api-server".
-```
+| Deploy a container image | "Deploy nginx:alpine as 'web' on port 80" |
+| Deploy from source code | "Create a Python Flask app and deploy it as 'api'" |
+| Deploy from a git repo | "Deploy https://github.com/myorg/myapp as 'myapp'" |
+| Deploy from a private repo | "Store my GitHub token as 'github-creds', then deploy…" |
+| Check status | "What's the status of hello-go?" |
+| View logs | "Show me the logs for hello-go" |
+| List apps | "What apps are running?" |
+| Delete an app | "Delete the test-app" |
+| Use a database | "List available data sources, then attach prod-postgres to api" |
 
 ---
 
 ## Troubleshooting
 
-| Problem | Fix |
-|---------|-----|
-| `iaf` not listed in `/mcp` | Check the `Authorization` header is set in your MCP config |
-| All tool calls fail with auth error | Verify the token matches `IAF_API_TOKENS` in the platform config |
-| App stuck in `Building` | Ask Claude: "Show me the build logs for \<app\>" — it will call `app_logs` with `build_logs: true` |
-| App stuck in `Deploying` | Check pod events: `kubectl get pods -n iaf-<session-id>` |
-| Can't reach the app URL | Verify Traefik is running: `kubectl get pods -A -l app.kubernetes.io/name=traefik` |
-| MCP endpoint unreachable | `curl http://iaf.localhost/health` — check Traefik IngressRoute: `kubectl get ingressroute -n iaf-system` |
+**`iaf` not listed in `/mcp`**
+The `claude mcp add` command may not have run, or it added to the wrong config file. Run it again and check `~/.claude.json`.
+
+**All tool calls fail / "unauthorized"**
+The `Authorization` header is missing or wrong. Double-check the `headers` section in your MCP config file and make sure the token matches what the operator configured.
+
+**"connection refused" or MCP endpoint unreachable**
+The platform isn't reachable from your machine. Verify: `curl http://iaf.localhost/health`. If that fails, check with your operator that Traefik is routing correctly.
+
+**App stuck in `Building` for more than 5 minutes**
+Ask Claude: `"Show me the build logs for <app-name>"` — it will call `app_logs` with build mode and surface the kpack error.
+
+**App stuck in `Deploying`**
+Usually an image pull error or crash loop. Ask Claude: `"What's wrong with <app-name>?"` and it will check the pod status.

@@ -1,6 +1,12 @@
-# Using IAF
+# IAF MCP Reference
 
-This guide covers how to use IAF once the platform is deployed and running in Kubernetes.
+> **Who this is for:** Platform developers and operators who want a complete reference of everything IAF exposes to Claude instances over MCP — tools, prompts, and resources.
+>
+> If you're a human trying to connect your Claude Code to IAF, see [Claude Code Setup](claude-code-setup.md) instead.
+>
+> **Note:** Claude instances receive the tool list, server instructions, and resource/prompt definitions automatically when they connect. You don't configure any of this manually — it's built into the platform.
+
+This reference covers all MCP tools, prompts, and resources that IAF sends to connected Claude instances.
 
 ## Prerequisites
 

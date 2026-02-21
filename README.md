@@ -103,12 +103,41 @@ Then ask Claude to deploy an app:
 
 ## Documentation
 
+IAF has documentation for three distinct audiences — make sure you're reading the right one:
+
+### 1. You want to connect your Claude Code to IAF (most common)
+
+→ **[Claude Code Setup](docs/claude-code-setup.md)** — step-by-step guide for humans connecting a Claude Code instance to a running IAF platform.
+
+### 2. You are running or administering the IAF platform (operator)
+
+→ **[Operator Guide](docs/operator-guide.md)** — installing, configuring, and managing the platform (TLS, data catalog, auth tokens, RBAC).
+
+→ **[Architecture](docs/architecture.md)** — how IAF works internally: components, CRDs, session model, security model, end-to-end data flow.
+
+### 3. You are developing IAF itself (platform developer)
+
+→ **[CLAUDE.md](CLAUDE.md)** — coding conventions, testing requirements, and workflow rules for Claude Code when building the platform.
+
+→ **[Contributing](CONTRIBUTING.md)** — development environment setup and contribution guidelines.
+
+---
+
+> **Note on Claude instructions:** IAF has three layers of Claude-facing content, which are easy to confuse:
+> - **CLAUDE.md** — tells the Claude Code instance that *develops IAF* how to work on this codebase
+> - **MCP server instructions + prompts + resources** — sent automatically to any Claude Code instance that *connects to IAF*; Claude receives these at connection time and uses them to deploy apps
+> - **docs/claude-code-setup.md** — tells a *human* how to configure their Claude Code to connect to IAF
+
+---
+
+### Reference
+
 | Document | Description |
 |----------|-------------|
-| [Architecture](docs/architecture.md) | How IAF works — components, CRDs, session model, data flow |
-| [Operator Guide](docs/operator-guide.md) | Installing and configuring the platform — TLS, data catalog, auth |
-| [Usage Guide](docs/usage.md) | Using IAF from Claude Code — tools, prompts, example workflows |
-| [Claude Code Setup](docs/claude-code-setup.md) | Connecting Claude Code to IAF |
+| [Claude Code Setup](docs/claude-code-setup.md) | **Start here** if you want Claude to deploy apps via IAF |
+| [Operator Guide](docs/operator-guide.md) | Platform installation and configuration |
+| [Architecture](docs/architecture.md) | Internals: components, CRDs, security, data flow |
+| [Usage Guide](docs/usage.md) | MCP tools, prompts, and resources reference (agent-facing) |
 | [Contributing](CONTRIBUTING.md) | Development setup and guidelines |
 
 ## Development
