@@ -25,7 +25,7 @@ func RegisterDeployGuide(server *gomcp.Server, deps *tools.Dependencies) {
 4. If resuming previous work, reuse a previously stored session_id.
 
 ## Platform Overview
-IAF (Intelligent Application Fabric) deploys applications on Kubernetes. Each session gets its own isolated namespace. Applications are exposed via Traefik ingress at <name>.` + deps.BaseDomain + `.
+IAF (Intelligent Application Fabric) deploys applications on Kubernetes. Each session gets its own isolated namespace. Applications are exposed via Traefik ingress at <name>.` + deps.BaseDomain + `. TLS is enabled by default (HTTPS); set ` + "`tls.enabled: false`" + ` in the Application spec to opt out.
 
 ## Deployment Methods
 
@@ -58,7 +58,7 @@ Use the push_code tool to upload source files as a tarball. The platform stores 
 
 ## Networking
 - Default container port: 8080 (configurable via "port" field).
-- Applications are exposed via HTTP at http://<name>.` + deps.BaseDomain + `
+- Applications are exposed via HTTPS at https://<name>.` + deps.BaseDomain + `
 - Health endpoint recommendation: implement a /health or /healthz endpoint for readiness probes.
 
 ## Security Considerations
