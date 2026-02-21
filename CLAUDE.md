@@ -73,6 +73,10 @@ The platform is accessible at:
 - `internal/api/` — REST API handlers
 - `internal/sourcestore/` — Source code tarball storage
 
+## Documentation Requirements
+- **Every PR that adds, changes, or removes a feature must update the relevant docs.** Documentation is not optional — it is part of the definition of done.
+- Update or create docs in `docs/` to reflect any changes to tools, CRDs, configuration, architecture, or operator-facing behaviour.
+
 ## Code Conventions
 - MCP tools, prompts, and resources each get their own file with a `RegisterXxx(server, deps)` function.
 - All registration functions take `(*gomcp.Server, *tools.Dependencies)`.
