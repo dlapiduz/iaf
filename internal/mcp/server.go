@@ -37,6 +37,9 @@ AVAILABLE TOOLS (all require session_id except register):
 - add_git_credential: Store a git credential (username/password or SSH key) for private repo access
 - list_git_credentials: List stored git credentials (no secrets returned)
 - delete_git_credential: Remove a git credential
+- list_data_sources: List all platform data sources (databases, APIs, etc.)
+- get_data_source: Get details about a specific data source including env var names
+- attach_data_source: Attach a data source to your app (injects credentials as env vars)
 
 KEY DETAILS:
 - Apps are built automatically using Cloud Native Buildpacks (Go, Node.js, Python, Java, Ruby)
@@ -90,6 +93,9 @@ func NewServer(k8sClient client.Client, sessions *auth.SessionStore, store *sour
 	}
 	tools.RegisterListApps(server, deps)
 	tools.RegisterDeleteApp(server, deps)
+	tools.RegisterListDataSources(server, deps)
+	tools.RegisterGetDataSource(server, deps)
+	tools.RegisterAttachDataSource(server, deps)
 
 	prompts.RegisterDeployGuide(server, deps)
 	prompts.RegisterLanguageGuide(server, deps)
@@ -101,6 +107,7 @@ func NewServer(k8sClient client.Client, sessions *auth.SessionStore, store *sour
 	resources.RegisterApplicationSpec(server, deps)
 	resources.RegisterOrgStandards(server, deps)
 	resources.RegisterScaffoldResource(server, deps)
+	resources.RegisterDataCatalog(server, deps)
 
 	// GitHub components — registered only when a token and org are configured.
 	if deps.GitHub != nil {

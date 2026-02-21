@@ -83,6 +83,23 @@ rules:
   - patch
   - update
 - apiGroups:
+  - iaf.io
+  resources:
+  - datasources
+  verbs:
+  - get
+  - list
+  - watch
+- apiGroups:
+  - ""
+  resources:
+  - secrets
+  verbs:
+  - create
+  - delete
+  - get
+  - list
+- apiGroups:
   - kpack.io
   resources:
   - images

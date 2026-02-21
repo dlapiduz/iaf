@@ -92,6 +92,9 @@ func TestNewServer_RegistersAllTools(t *testing.T) {
 		"add_git_credential",
 		"list_git_credentials",
 		"delete_git_credential",
+		"list_data_sources",
+		"get_data_source",
+		"attach_data_source",
 	}
 
 	toolNames := map[string]bool{}
@@ -135,7 +138,7 @@ func TestNewServer_RegistersAllResources(t *testing.T) {
 		t.Fatal(err)
 	}
 
-	expectedResources := []string{"platform-info", "application-spec", "org-coding-standards"}
+	expectedResources := []string{"platform-info", "application-spec", "org-coding-standards", "data-catalog"}
 	resourceNames := map[string]bool{}
 	for _, r := range res.Resources {
 		resourceNames[r.Name] = true
