@@ -14,6 +14,7 @@ import (
 	"github.com/dlapiduz/iaf/internal/orgstandards"
 	"github.com/dlapiduz/iaf/internal/sourcestore"
 	gomcp "github.com/modelcontextprotocol/go-sdk/mcp"
+	"k8s.io/client-go/kubernetes"
 )
 
 func main() {
@@ -56,7 +57,23 @@ func main() {
 		ghClient = iafgithub.NewHTTPClient(cfg.GitHubToken)
 	}
 
-	server := iafmcp.NewServer(k8sClient, sessions, store, cfg.BaseDomain, orgLoader, ghClient, cfg.GitHubOrg, cfg.GitHubToken)
+	// Attempt to create a Kubernetes clientset for log streaming.
+	// Failure is a soft degradation — all other tools still work.
+	var clientset kubernetes.Interface
+	restCfg, err := k8s.GetConfig(cfg.KubeConfig)
+	if err != nil {
+		logger.Warn("log streaming: degraded (could not get REST config)", "error", err)
+	} else {
+		cs, err := kubernetes.NewForConfig(restCfg)
+		if err != nil {
+			logger.Warn("log streaming: degraded (could not create clientset)", "error", err)
+		} else {
+			clientset = cs
+			logger.Info("log streaming: enabled")
+		}
+	}
+
+	server := iafmcp.NewServer(k8sClient, sessions, store, cfg.BaseDomain, orgLoader, ghClient, cfg.GitHubOrg, cfg.GitHubToken, clientset)
 
 	logger.Info("starting MCP server", "transport", cfg.MCPTransport)
 
