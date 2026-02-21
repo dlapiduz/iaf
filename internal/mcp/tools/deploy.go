@@ -103,7 +103,7 @@ func RegisterDeployApp(server *gomcp.Server, deps *Dependencies) {
 		result := map[string]any{
 			"name":    input.Name,
 			"status":  "created",
-			"message": fmt.Sprintf("Application %q created successfully. It will be available at http://%s once deployed.", input.Name, host),
+			"message": fmt.Sprintf("Application %q created successfully. It will be available at https://%s once deployed (TLS enabled by default).", input.Name, host),
 		}
 		if input.GitURL != "" {
 			result["source"] = "git"

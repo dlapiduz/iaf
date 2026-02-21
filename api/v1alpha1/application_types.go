@@ -4,6 +4,23 @@ import (
 	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
 )
 
+// TLSConfig controls HTTPS for an Application.
+type TLSConfig struct {
+	// Enabled controls whether TLS is provisioned for this application.
+	// When nil or true, TLS is enabled (default on). Set to false to opt out.
+	// +optional
+	Enabled *bool `json:"enabled,omitempty"`
+}
+
+// IsTLSEnabled returns true when TLS should be enabled for the given application.
+// TLS is on by default; set spec.tls.enabled=false to opt out.
+func IsTLSEnabled(app *Application) bool {
+	if app.Spec.TLS == nil || app.Spec.TLS.Enabled == nil {
+		return true
+	}
+	return *app.Spec.TLS.Enabled
+}
+
 // ApplicationSpec defines the desired state of an Application.
 type ApplicationSpec struct {
 	// Image is a pre-built container image reference (e.g., "nginx:latest").
@@ -39,6 +56,11 @@ type ApplicationSpec struct {
 	// Host is the hostname for routing. Defaults to "{name}.localhost".
 	// +optional
 	Host string `json:"host,omitempty"`
+
+	// TLS configures HTTPS for this application. TLS is enabled by default.
+	// Set tls.enabled=false to opt out and serve over HTTP only.
+	// +optional
+	TLS *TLSConfig `json:"tls,omitempty"`
 }
 
 // GitSource specifies a git repository source for building.

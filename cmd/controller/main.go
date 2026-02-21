@@ -50,6 +50,7 @@ func main() {
 		ClusterBuilder: cfg.ClusterBuilder,
 		RegistryPrefix: cfg.RegistryPrefix,
 		BaseDomain:     cfg.BaseDomain,
+		TLSIssuer:      cfg.TLSIssuer,
 	}
 
 	if err := reconciler.SetupWithManager(mgr); err != nil {

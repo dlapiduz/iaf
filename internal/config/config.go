@@ -30,6 +30,9 @@ type Config struct {
 
 	// Routing
 	BaseDomain string `mapstructure:"base_domain"`
+	// TLSIssuer is the ClusterIssuer name for cert-manager. Default: "selfsigned-issuer".
+	// Set to "" to disable TLS certificate provisioning (e.g., cert-manager not installed).
+	TLSIssuer string `mapstructure:"tls_issuer"`
 
 	// Org standards
 	OrgStandardsFile string `mapstructure:"org_standards_file"`
@@ -53,6 +56,7 @@ func Load() (*Config, error) {
 	v.SetDefault("source_store_dir", "/tmp/iaf-sources")
 	v.SetDefault("source_store_url", "http://iaf-source-store.iaf-system.svc.cluster.local")
 	v.SetDefault("base_domain", "localhost")
+	v.SetDefault("tls_issuer", "selfsigned-issuer")
 	v.SetDefault("org_standards_file", "")
 	v.SetDefault("github_token", "")
 	v.SetDefault("github_org", "")

@@ -26,7 +26,8 @@ func RegisterPlatformInfo(server *gomcp.Server, deps *tools.Dependencies) {
 			"routing": map[string]any{
 				"ingress":   "traefik",
 				"pattern":   fmt.Sprintf("<name>.%s", deps.BaseDomain),
-				"protocol":  "http",
+				"protocol":  "https",
+				"tlsNote":   "TLS is enabled by default via cert-manager. Set spec.tls.enabled=false to opt out.",
 			},
 			"supportedLanguages": []string{"go", "nodejs", "python", "java", "ruby"},
 			"buildStack":         "Paketo Jammy LTS (Ubuntu 22.04)",

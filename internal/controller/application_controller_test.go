@@ -6,9 +6,12 @@ import (
 	"time"
 
 	iafv1alpha1 "github.com/dlapiduz/iaf/api/v1alpha1"
+	iafk8s "github.com/dlapiduz/iaf/internal/k8s"
 	appsv1 "k8s.io/api/apps/v1"
 	corev1 "k8s.io/api/core/v1"
+	apierrors "k8s.io/apimachinery/pkg/api/errors"
 	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
+	"k8s.io/apimachinery/pkg/apis/meta/v1/unstructured"
 	"k8s.io/apimachinery/pkg/runtime"
 	"k8s.io/apimachinery/pkg/types"
 	clientgoscheme "k8s.io/client-go/kubernetes/scheme"
@@ -304,5 +307,89 @@ func TestReconcile_NotFound(t *testing.T) {
 	}
 	if result.Requeue || result.RequeueAfter != 0 {
 		t.Errorf("expected empty result for missing app, got %+v", result)
+	}
+}
+
+// newReconcilerWithTLS returns a reconciler with TLSIssuer set so that
+// certificate reconciliation is active.
+func newReconcilerWithTLS(scheme *runtime.Scheme) *ApplicationReconciler {
+	k8sClient := fake.NewClientBuilder().
+		WithScheme(scheme).
+		WithStatusSubresource(&iafv1alpha1.Application{}).
+		Build()
+	return &ApplicationReconciler{
+		Client:         k8sClient,
+		Scheme:         scheme,
+		ClusterBuilder: "default",
+		RegistryPrefix: "registry.example.com",
+		BaseDomain:     "example.com",
+		TLSIssuer:      "selfsigned-issuer",
+	}
+}
+
+// TestReconcile_TLS_HTTPSURLWhenIssuerSet verifies that when TLSIssuer is
+// configured, the status URL uses https:// and a cert-manager Certificate CR
+// is created.
+func TestReconcile_TLS_HTTPSURLWhenIssuerSet(t *testing.T) {
+	scheme := newTestScheme(t)
+	r := newReconcilerWithTLS(scheme)
+	ctx := context.Background()
+
+	app := makeApp("myapp", "test-ns")
+	if err := r.Create(ctx, app); err != nil {
+		t.Fatal(err)
+	}
+
+	reconcileApp(t, r, "myapp", "test-ns")
+
+	var result iafv1alpha1.Application
+	if err := r.Get(ctx, types.NamespacedName{Name: "myapp", Namespace: "test-ns"}, &result); err != nil {
+		t.Fatal(err)
+	}
+	expected := "https://myapp.example.com"
+	if result.Status.URL != expected {
+		t.Errorf("expected URL %q when TLS issuer is set, got %q", expected, result.Status.URL)
+	}
+
+	// A cert-manager Certificate CR should have been created.
+	cert := &unstructured.Unstructured{}
+	cert.SetGroupVersionKind(iafk8s.CertificateGVK)
+	if err := r.Get(ctx, types.NamespacedName{Name: "myapp", Namespace: "test-ns"}, cert); err != nil {
+		t.Fatalf("expected Certificate CR to be created: %v", err)
+	}
+}
+
+// TestReconcile_TLS_OptOut verifies that when an app sets tls.enabled=false,
+// the status URL uses http:// and no Certificate CR is created, even when
+// TLSIssuer is configured.
+func TestReconcile_TLS_OptOut(t *testing.T) {
+	scheme := newTestScheme(t)
+	r := newReconcilerWithTLS(scheme)
+	ctx := context.Background()
+
+	tlsOff := false
+	app := makeApp("myapp", "test-ns")
+	app.Spec.TLS = &iafv1alpha1.TLSConfig{Enabled: &tlsOff}
+	if err := r.Create(ctx, app); err != nil {
+		t.Fatal(err)
+	}
+
+	reconcileApp(t, r, "myapp", "test-ns")
+
+	var result iafv1alpha1.Application
+	if err := r.Get(ctx, types.NamespacedName{Name: "myapp", Namespace: "test-ns"}, &result); err != nil {
+		t.Fatal(err)
+	}
+	expected := "http://myapp.example.com"
+	if result.Status.URL != expected {
+		t.Errorf("expected URL %q with TLS opted out, got %q", expected, result.Status.URL)
+	}
+
+	// No Certificate CR should have been created.
+	cert := &unstructured.Unstructured{}
+	cert.SetGroupVersionKind(iafk8s.CertificateGVK)
+	err := r.Get(ctx, types.NamespacedName{Name: "myapp", Namespace: "test-ns"}, cert)
+	if !apierrors.IsNotFound(err) {
+		t.Errorf("expected no Certificate when TLS opted out, got err=%v", err)
 	}
 }

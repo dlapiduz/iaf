@@ -29,6 +29,7 @@ import (
 // +kubebuilder:rbac:groups="",resources=serviceaccounts,verbs=create;get;update;patch
 // +kubebuilder:rbac:groups=kpack.io,resources=images,verbs=get;list;watch;create;update;patch;delete
 // +kubebuilder:rbac:groups=traefik.io,resources=ingressroutes,verbs=get;list;watch;create;update;patch;delete
+// +kubebuilder:rbac:groups=cert-manager.io,resources=certificates,verbs=get;list;watch;create;update;patch;delete
 
 // ApplicationReconciler reconciles Application CRs.
 type ApplicationReconciler struct {
@@ -37,6 +38,10 @@ type ApplicationReconciler struct {
 	ClusterBuilder string
 	RegistryPrefix string
 	BaseDomain     string
+	// TLSIssuer is the name of the ClusterIssuer used to provision TLS certificates.
+	// Defaults to "selfsigned-issuer". Set to "" to disable certificate reconciliation
+	// (e.g., when cert-manager is not installed).
+	TLSIssuer string
 }
 
 // Reconcile is the main reconciliation loop for Application CRs.
@@ -72,7 +77,12 @@ func (r *ApplicationReconciler) Reconcile(ctx context.Context, req ctrl.Request)
 		}
 	}
 
-	// Create or update the Deployment, Service, and IngressRoute.
+	// TLS requires both the app opting in (default true) AND a TLSIssuer being configured.
+	// When TLSIssuer is empty (cert-manager not installed) the controller degrades gracefully
+	// to HTTP-only mode without crashing.
+	tlsEnabled := iafv1alpha1.IsTLSEnabled(&app) && r.TLSIssuer != ""
+
+	// Create or update the Deployment, Service, Certificate, and IngressRoute.
 	dep, err := r.reconcileDeployment(ctx, &app, image)
 	if err != nil {
 		return ctrl.Result{}, err
@@ -80,12 +90,15 @@ func (r *ApplicationReconciler) Reconcile(ctx context.Context, req ctrl.Request)
 	if err := r.reconcileService(ctx, &app); err != nil {
 		return ctrl.Result{}, err
 	}
-	if err := r.reconcileIngressRoute(ctx, &app); err != nil {
+	if err := r.reconcileCertificate(ctx, &app, tlsEnabled); err != nil {
+		return ctrl.Result{}, err
+	}
+	if err := r.reconcileIngressRoute(ctx, &app, tlsEnabled); err != nil {
 		return ctrl.Result{}, err
 	}
 
 	// Update status based on current Deployment availability.
-	return r.reconcileStatus(ctx, &app, image, buildStatus, dep)
+	return r.reconcileStatus(ctx, &app, image, buildStatus, dep, tlsEnabled)
 }
 
 // resolveImage returns the container image to deploy.
@@ -283,9 +296,42 @@ func (r *ApplicationReconciler) reconcileService(ctx context.Context, app *iafv1
 	return r.Update(ctx, existing)
 }
 
+// reconcileCertificate creates or updates the cert-manager Certificate for the application.
+// It is a no-op when TLS is disabled or when TLSIssuer is not configured (cert-manager absent).
+func (r *ApplicationReconciler) reconcileCertificate(ctx context.Context, app *iafv1alpha1.Application, tlsEnabled bool) error {
+	if !tlsEnabled || r.TLSIssuer == "" {
+		return nil
+	}
+
+	host := app.Spec.Host
+	if host == "" {
+		host = fmt.Sprintf("%s.%s", app.Name, r.BaseDomain)
+	}
+
+	desired := iafk8s.BuildCertificate(app, host, r.TLSIssuer)
+
+	existing := &unstructured.Unstructured{}
+	existing.SetGroupVersionKind(iafk8s.CertificateGVK)
+	err := r.Get(ctx, types.NamespacedName{Name: app.Name, Namespace: app.Namespace}, existing)
+	if err != nil {
+		if !apierrors.IsNotFound(err) {
+			return fmt.Errorf("getting certificate: %w", err)
+		}
+		if err := r.Create(ctx, desired); err != nil && !apierrors.IsAlreadyExists(err) {
+			return fmt.Errorf("creating certificate: %w", err)
+		}
+		return nil
+	}
+	existing.Object["spec"] = desired.Object["spec"]
+	if err := r.Update(ctx, existing); err != nil {
+		return fmt.Errorf("updating certificate: %w", err)
+	}
+	return nil
+}
+
 // reconcileIngressRoute creates or updates the Traefik IngressRoute for the application.
-func (r *ApplicationReconciler) reconcileIngressRoute(ctx context.Context, app *iafv1alpha1.Application) error {
-	desired := iafk8s.BuildIngressRoute(app, r.BaseDomain)
+func (r *ApplicationReconciler) reconcileIngressRoute(ctx context.Context, app *iafv1alpha1.Application, tlsEnabled bool) error {
+	desired := iafk8s.BuildIngressRoute(app, r.BaseDomain, tlsEnabled)
 
 	existing := &unstructured.Unstructured{}
 	existing.SetGroupVersionKind(iafk8s.TraefikIngressRouteGVK)
@@ -302,7 +348,7 @@ func (r *ApplicationReconciler) reconcileIngressRoute(ctx context.Context, app *
 
 // reconcileStatus reads the current Deployment availability and updates the Application status.
 // It sets phase to Running if at least one replica is available, or Deploying otherwise.
-func (r *ApplicationReconciler) reconcileStatus(ctx context.Context, app *iafv1alpha1.Application, image, buildStatus string, dep *appsv1.Deployment) (ctrl.Result, error) {
+func (r *ApplicationReconciler) reconcileStatus(ctx context.Context, app *iafv1alpha1.Application, image, buildStatus string, dep *appsv1.Deployment, tlsEnabled bool) (ctrl.Result, error) {
 	available := dep.Status.AvailableReplicas
 
 	host := app.Spec.Host
@@ -310,11 +356,16 @@ func (r *ApplicationReconciler) reconcileStatus(ctx context.Context, app *iafv1a
 		host = fmt.Sprintf("%s.%s", app.Name, r.BaseDomain)
 	}
 
+	scheme := "https"
+	if !tlsEnabled {
+		scheme = "http"
+	}
+
 	// Always write accurate status fields.
 	app.Status.AvailableReplicas = available
 	app.Status.LatestImage = image
 	app.Status.BuildStatus = buildStatus
-	app.Status.URL = fmt.Sprintf("http://%s", host)
+	app.Status.URL = fmt.Sprintf("%s://%s", scheme, host)
 
 	if available >= 1 {
 		app.Status.Phase = iafv1alpha1.ApplicationPhaseRunning

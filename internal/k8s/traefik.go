@@ -24,7 +24,9 @@ var TraefikIngressRouteGVR = schema.GroupVersionResource{
 }
 
 // BuildIngressRoute constructs an unstructured Traefik IngressRoute for the given application.
-func BuildIngressRoute(app *iafv1alpha1.Application, baseDomain string) *unstructured.Unstructured {
+// When tlsEnabled is true the route uses the "websecure" entrypoint and references the
+// cert-manager TLS Secret; otherwise it uses the "web" (HTTP) entrypoint.
+func BuildIngressRoute(app *iafv1alpha1.Application, baseDomain string, tlsEnabled bool) *unstructured.Unstructured {
 	host := app.Spec.Host
 	if host == "" {
 		host = fmt.Sprintf("%s.%s", app.Name, baseDomain)
@@ -52,8 +54,8 @@ func BuildIngressRoute(app *iafv1alpha1.Application, baseDomain string) *unstruc
 		},
 	})
 
-	obj.Object["spec"] = map[string]any{
-		"entryPoints": []any{"web"},
+	entryPoints := []any{"web"}
+	spec := map[string]any{
 		"routes": []any{
 			map[string]any{
 				"match": fmt.Sprintf("Host(`%s`)", host),
@@ -68,5 +70,14 @@ func BuildIngressRoute(app *iafv1alpha1.Application, baseDomain string) *unstruc
 		},
 	}
 
+	if tlsEnabled {
+		entryPoints = []any{"websecure"}
+		spec["tls"] = map[string]any{
+			"secretName": TLSSecretName(app.Name),
+		}
+	}
+	spec["entryPoints"] = entryPoints
+
+	obj.Object["spec"] = spec
 	return obj
 }
