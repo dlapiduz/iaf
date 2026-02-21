@@ -8,6 +8,7 @@ import (
 	"time"
 
 	iafv1alpha1 "github.com/dlapiduz/iaf/api/v1alpha1"
+	"github.com/dlapiduz/iaf/internal/validation"
 	gomcp "github.com/modelcontextprotocol/go-sdk/mcp"
 	apierrors "k8s.io/apimachinery/pkg/api/errors"
 	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
@@ -31,8 +32,13 @@ func RegisterPushCode(server *gomcp.Server, deps *Dependencies) {
 		if err != nil {
 			return nil, nil, err
 		}
-		if input.Name == "" {
-			return nil, nil, fmt.Errorf("name is required")
+		if err := validation.ValidateAppName(input.Name); err != nil {
+			return nil, nil, err
+		}
+		for _, e := range input.Env {
+			if err := validation.ValidateEnvVarName(e.Name); err != nil {
+				return nil, nil, err
+			}
 		}
 		if len(input.Files) == 0 {
 			return nil, nil, fmt.Errorf("files map is required")

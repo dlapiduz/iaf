@@ -7,6 +7,7 @@ import (
 	"io"
 
 	iafv1alpha1 "github.com/dlapiduz/iaf/api/v1alpha1"
+	"github.com/dlapiduz/iaf/internal/validation"
 	gomcp "github.com/modelcontextprotocol/go-sdk/mcp"
 	corev1 "k8s.io/api/core/v1"
 	apierrors "k8s.io/apimachinery/pkg/api/errors"
@@ -33,8 +34,8 @@ func RegisterAppLogs(server *gomcp.Server, deps *Dependencies) {
 		if err != nil {
 			return nil, nil, err
 		}
-		if input.Name == "" {
-			return nil, nil, fmt.Errorf("name is required")
+		if err := validation.ValidateAppName(input.Name); err != nil {
+			return nil, nil, err
 		}
 
 		lines := input.Lines
@@ -82,8 +83,8 @@ func RegisterAppLogsWithClientset(server *gomcp.Server, deps *Dependencies, clie
 		if err != nil {
 			return nil, nil, err
 		}
-		if input.Name == "" {
-			return nil, nil, fmt.Errorf("name is required")
+		if err := validation.ValidateAppName(input.Name); err != nil {
+			return nil, nil, err
 		}
 
 		lines := input.Lines
