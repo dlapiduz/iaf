@@ -52,6 +52,29 @@ spec:
           spec:
             description: ApplicationSpec defines the desired state of an Application.
             properties:
+              attachedDataSources:
+                description: |-
+                  AttachedDataSources lists data sources attached to this application.
+                  The controller injects credentials from each DataSource as env vars into the Deployment.
+                  Use the attach_data_source MCP tool to add entries here.
+                items:
+                  description: AttachedDataSource records a DataSource attached to
+                    an Application.
+                  properties:
+                    dataSourceName:
+                      description: DataSourceName is the name of the cluster-scoped
+                        DataSource CR.
+                      type: string
+                    secretName:
+                      description: |-
+                        SecretName is the name of the credential Secret copied into the session namespace.
+                        This Secret is owned by the Application CR and is deleted when the application is deleted.
+                      type: string
+                  required:
+                  - dataSourceName
+                  - secretName
+                  type: object
+                type: array
               blob:
                 description: |-
                   Blob is a URL to a source code archive (tarball) to build from using kpack.
@@ -109,6 +132,17 @@ spec:
                 description: Replicas is the desired number of pod replicas.
                 format: int32
                 type: integer
+              tls:
+                description: |-
+                  TLS configures HTTPS for this application. TLS is enabled by default.
+                  Set tls.enabled=false to opt out and serve over HTTP only.
+                properties:
+                  enabled:
+                    description: |-
+                      Enabled controls whether TLS is provisioned for this application.
+                      When nil or true, TLS is enabled (default on). Set to false to opt out.
+                    type: boolean
+                type: object
             type: object
           status:
             description: ApplicationStatus defines the observed state of an Application.

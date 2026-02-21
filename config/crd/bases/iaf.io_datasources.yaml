@@ -1,0 +1,107 @@
+---
+apiVersion: apiextensions.k8s.io/v1
+kind: CustomResourceDefinition
+metadata:
+  annotations:
+    controller-gen.kubebuilder.io/version: v0.17.2
+  name: datasources.iaf.io
+spec:
+  group: iaf.io
+  names:
+    kind: DataSource
+    listKind: DataSourceList
+    plural: datasources
+    singular: datasource
+  scope: Cluster
+  versions:
+  - additionalPrinterColumns:
+    - jsonPath: .spec.kind
+      name: Kind
+      type: string
+    - jsonPath: .spec.description
+      name: Description
+      type: string
+    - jsonPath: .metadata.creationTimestamp
+      name: Age
+      type: date
+    name: v1alpha1
+    schema:
+      openAPIV3Schema:
+        description: |-
+          DataSource is the Schema for the datasources API.
+          DataSources are registered by platform operators via kubectl and surfaced
+          to agents via the list_data_sources, get_data_source, and attach_data_source MCP tools.
+          Agents cannot create or modify DataSources.
+        properties:
+          apiVersion:
+            description: |-
+              APIVersion defines the versioned schema of this representation of an object.
+              Servers should convert recognized schemas to the latest internal value, and
+              may reject unrecognized values.
+              More info: https://git.k8s.io/community/contributors/devel/sig-architecture/api-conventions.md#resources
+            type: string
+          kind:
+            description: |-
+              Kind is a string value representing the REST resource this object represents.
+              Servers may infer this from the endpoint the client submits requests to.
+              Cannot be updated.
+              In CamelCase.
+              More info: https://git.k8s.io/community/contributors/devel/sig-architecture/api-conventions.md#types-kinds
+            type: string
+          metadata:
+            type: object
+          spec:
+            description: DataSourceSpec defines the configuration for a platform-managed
+              data source.
+            properties:
+              description:
+                description: Description is a human-readable description of the data
+                  source.
+                type: string
+              envVarMapping:
+                additionalProperties:
+                  type: string
+                description: |-
+                  EnvVarMapping maps Secret data keys to the environment variable names injected
+                  into applications that attach this DataSource.
+                  Key: a key in the referenced Secret. Value: the env var name in the application container.
+                type: object
+              kind:
+                description: Kind is the type of data source (e.g., postgres, mysql,
+                  s3, http-api, kafka).
+                type: string
+              schema:
+                description: Schema is an optional description of the data schema
+                  (e.g., table names, API endpoints).
+                type: string
+              secretRef:
+                description: |-
+                  SecretRef references the operator-created Secret containing connection credentials.
+                  Agents cannot change this field — only operators can register DataSources.
+                properties:
+                  name:
+                    description: Name is the name of the Secret.
+                    type: string
+                  namespace:
+                    description: Namespace is the namespace containing the Secret
+                      (typically iaf-system).
+                    type: string
+                required:
+                - name
+                - namespace
+                type: object
+              tags:
+                description: Tags are optional labels for filtering and categorising
+                  data sources.
+                items:
+                  type: string
+                type: array
+            required:
+            - envVarMapping
+            - kind
+            - secretRef
+            type: object
+        type: object
+    served: true
+    storage: true
+    subresources: {}

@@ -7,6 +7,7 @@ import (
 	iafv1alpha1 "github.com/dlapiduz/iaf/api/v1alpha1"
 	"github.com/dlapiduz/iaf/internal/auth"
 	"github.com/dlapiduz/iaf/internal/sourcestore"
+	"github.com/dlapiduz/iaf/internal/validation"
 	"github.com/labstack/echo/v4"
 	apierrors "k8s.io/apimachinery/pkg/api/errors"
 	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
@@ -153,8 +154,13 @@ func (h *ApplicationHandler) Create(c echo.Context) error {
 		return c.JSON(http.StatusBadRequest, map[string]string{"error": err.Error()})
 	}
 
-	if req.Name == "" {
-		return c.JSON(http.StatusBadRequest, map[string]string{"error": "name is required"})
+	if err := validation.ValidateAppName(req.Name); err != nil {
+		return c.JSON(http.StatusBadRequest, map[string]string{"error": err.Error()})
+	}
+	for _, e := range req.Env {
+		if err := validation.ValidateEnvVarName(e.Name); err != nil {
+			return c.JSON(http.StatusBadRequest, map[string]string{"error": err.Error()})
+		}
 	}
 	if req.Image == "" && req.GitURL == "" {
 		return c.JSON(http.StatusBadRequest, map[string]string{"error": "either image or gitUrl is required"})
@@ -206,9 +212,17 @@ func (h *ApplicationHandler) Update(c echo.Context) error {
 	}
 
 	name := c.Param("name")
+	if err := validation.ValidateAppName(name); err != nil {
+		return c.JSON(http.StatusBadRequest, map[string]string{"error": err.Error()})
+	}
 	var req CreateApplicationRequest
 	if err := c.Bind(&req); err != nil {
 		return c.JSON(http.StatusBadRequest, map[string]string{"error": err.Error()})
+	}
+	for _, e := range req.Env {
+		if err := validation.ValidateEnvVarName(e.Name); err != nil {
+			return c.JSON(http.StatusBadRequest, map[string]string{"error": err.Error()})
+		}
 	}
 
 	var app iafv1alpha1.Application

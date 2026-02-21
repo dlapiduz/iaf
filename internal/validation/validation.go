@@ -1,4 +1,3 @@
-// Package validation provides input-validation helpers for IAF.
 package validation
 
 import (
@@ -10,147 +9,161 @@ import (
 )
 
 var (
-	// appNameRe matches valid Kubernetes / DNS label names:
-	// lowercase alphanumeric and hyphens, must start with alphanumeric.
-	appNameRe = regexp.MustCompile(`^[a-z0-9][a-z0-9-]*$`)
+	appNameRegex       = regexp.MustCompile(`^[a-z0-9]([a-z0-9-]*[a-z0-9])?$`)
+	envVarNameRegex    = regexp.MustCompile(`^[A-Za-z_][A-Za-z0-9_]*$`)
+	githubRepoRegex    = regexp.MustCompile(`^[a-zA-Z0-9_.-]+$`)
 
-	// envVarRe matches valid POSIX / shell environment variable names.
-	envVarRe = regexp.MustCompile(`^[A-Za-z_][A-Za-z0-9_]*$`)
+	reservedPrefixes = []string{"kube-", "iaf-"}
 
-	// githubRepoRe matches valid GitHub repository names.
-	githubRepoRe = regexp.MustCompile(`^[a-zA-Z0-9._-]+$`)
-
-	// sshGitURLRe matches SSH git server URLs in the form git@<host>.
-	// Host may contain alphanumerics, dots, and hyphens.
-	sshGitURLRe = regexp.MustCompile(`^git@[a-zA-Z0-9][a-zA-Z0-9.\-]*$`)
-
-	// internalCIDRs is the set of IP ranges that must never be used as git servers
-	// to prevent SSRF via kpack build-time git cloning.
-	internalCIDRs = func() []*net.IPNet {
-		ranges := []string{
-			"10.0.0.0/8",
-			"172.16.0.0/12",
-			"192.168.0.0/16",
-			"127.0.0.0/8",
-			"169.254.0.0/16",
-			"::1/128",
-			"fc00::/7",
-		}
-		nets := make([]*net.IPNet, 0, len(ranges))
-		for _, r := range ranges {
-			_, n, _ := net.ParseCIDR(r)
-			nets = append(nets, n)
-		}
-		return nets
-	}()
+	// RFC 1918 private address ranges
+	privateRanges = []string{
+		"10.0.0.0/8",
+		"172.16.0.0/12",
+		"192.168.0.0/16",
+		"127.0.0.0/8",
+		"169.254.0.0/16",
+		"::1/128",
+		"fc00::/7",
+	}
 )
 
-// ValidateAppName returns an error if name is not a valid Kubernetes DNS label.
-// Rules: 1–63 characters, lowercase alphanumeric and hyphens, must start with
-// an alphanumeric character. The reserved prefixes "kube-" and "iaf-" are
-// also rejected to prevent conflicts with platform-managed objects.
+// ValidateAppName validates that name is a valid Kubernetes DNS label suitable
+// for use as an application name. Returns a descriptive error if invalid.
 func ValidateAppName(name string) error {
 	if name == "" {
-		return fmt.Errorf("app name must not be empty")
+		return fmt.Errorf("app name is required")
 	}
 	if len(name) > 63 {
-		return fmt.Errorf("app name must be 63 characters or fewer (got %d)", len(name))
+		return fmt.Errorf("app name must be 63 characters or less (got %d)", len(name))
 	}
-	if !appNameRe.MatchString(name) {
-		return fmt.Errorf("app name %q is invalid: must be lowercase alphanumeric and hyphens, starting with a letter or digit", name)
+	if !appNameRegex.MatchString(name) {
+		return fmt.Errorf("app name %q is invalid: must match ^[a-z0-9][a-z0-9-]*$ (lowercase letters, digits, and hyphens only; must start with a letter or digit)", name)
 	}
-	if strings.HasPrefix(name, "kube-") {
-		return fmt.Errorf("app name must not start with the reserved prefix 'kube-'")
-	}
-	if strings.HasPrefix(name, "iaf-") {
-		return fmt.Errorf("app name must not start with the reserved prefix 'iaf-'")
-	}
-	return nil
-}
-
-// ValidateEnvVarName returns an error if name is not a valid environment
-// variable name (POSIX: letter or underscore, followed by letters, digits,
-// or underscores).
-func ValidateEnvVarName(name string) error {
-	if name == "" {
-		return fmt.Errorf("env var name must not be empty")
-	}
-	if !envVarRe.MatchString(name) {
-		return fmt.Errorf("env var name %q is invalid: must start with a letter or underscore and contain only letters, digits, and underscores", name)
+	for _, prefix := range reservedPrefixes {
+		if strings.HasPrefix(name, prefix) {
+			return fmt.Errorf("app name %q is invalid: must not use reserved prefix %q", name, prefix)
+		}
 	}
 	return nil
 }
 
-// ValidateGitHubRepoName returns an error if name is not a valid GitHub
-// repository name. Rules: 1–100 characters, alphanumeric plus `.`, `_`, `-`;
-// must not start or end with `.` or `-`; must not contain `..`.
-func ValidateGitHubRepoName(name string) error {
-	if name == "" {
-		return fmt.Errorf("repository name must not be empty")
-	}
-	if len(name) > 100 {
-		return fmt.Errorf("repository name must be 100 characters or fewer (got %d)", len(name))
-	}
-	if !githubRepoRe.MatchString(name) {
-		return fmt.Errorf("repository name %q is invalid: must contain only letters, digits, '.', '_', or '-'", name)
-	}
-	if strings.HasPrefix(name, ".") || strings.HasPrefix(name, "-") {
-		return fmt.Errorf("repository name %q must not start with '.' or '-'", name)
-	}
-	if strings.HasSuffix(name, ".") || strings.HasSuffix(name, "-") {
-		return fmt.Errorf("repository name %q must not end with '.' or '-'", name)
-	}
-	if strings.Contains(name, "..") {
-		return fmt.Errorf("repository name %q must not contain '..'", name)
-	}
-	return nil
-}
-
-// ValidateBasicAuthGitServerURL validates a git server URL for basic-auth credentials.
-// The URL must use https:// and must not point to an RFC 1918 or loopback address.
+// ValidateBasicAuthGitServerURL validates a git server URL for basic-auth (HTTPS).
+// Rejects internal/RFC 1918 addresses to prevent SSRF.
 func ValidateBasicAuthGitServerURL(rawURL string) error {
 	if rawURL == "" {
-		return fmt.Errorf("git_server_url must not be empty")
+		return fmt.Errorf("git_server_url is required")
 	}
 	u, err := url.Parse(rawURL)
 	if err != nil {
 		return fmt.Errorf("git_server_url %q is not a valid URL: %w", rawURL, err)
 	}
 	if u.Scheme != "https" {
-		return fmt.Errorf("git_server_url must use https:// scheme (got %q); http:// is not allowed", u.Scheme)
+		return fmt.Errorf("git_server_url %q must use https:// (http is not allowed — credentials would be sent in plaintext)", rawURL)
 	}
-	return rejectInternalHost(u.Hostname())
+	if err := rejectPrivateHost(u.Hostname()); err != nil {
+		return fmt.Errorf("git_server_url %q: %w", rawURL, err)
+	}
+	return nil
 }
 
-// ValidateSSHGitServerURL validates a git server URL for SSH credentials.
-// The URL must match the git@<host> pattern and must not point to an internal host.
+// ValidateSSHGitServerURL validates a git server URL for SSH (git@ format).
+// Rejects internal/RFC 1918 addresses to prevent SSRF.
 func ValidateSSHGitServerURL(rawURL string) error {
 	if rawURL == "" {
-		return fmt.Errorf("git_server_url must not be empty")
+		return fmt.Errorf("git_server_url is required")
 	}
-	if !sshGitURLRe.MatchString(rawURL) {
-		return fmt.Errorf("git_server_url for ssh must match git@<host> pattern (e.g. git@github.com), got %q", rawURL)
+	// Accept git@host or git@host:path format
+	if strings.HasPrefix(rawURL, "git@") {
+		hostPart := rawURL[4:]
+		// Strip optional :path suffix
+		if idx := strings.Index(hostPart, ":"); idx >= 0 {
+			hostPart = hostPart[:idx]
+		}
+		if hostPart == "" {
+			return fmt.Errorf("git_server_url %q is not a valid SSH git URL (expected git@host or git@host:path)", rawURL)
+		}
+		if err := rejectPrivateHost(hostPart); err != nil {
+			return fmt.Errorf("git_server_url %q: %w", rawURL, err)
+		}
+		return nil
 	}
-	at := strings.Index(rawURL, "@")
-	host := rawURL[at+1:]
-	return rejectInternalHost(host)
+	// Also accept ssh:// URLs
+	u, err := url.Parse(rawURL)
+	if err != nil {
+		return fmt.Errorf("git_server_url %q is not a valid URL: %w", rawURL, err)
+	}
+	if u.Scheme != "ssh" {
+		return fmt.Errorf("git_server_url %q must use git@host:path or ssh:// format", rawURL)
+	}
+	if err := rejectPrivateHost(u.Hostname()); err != nil {
+		return fmt.Errorf("git_server_url %q: %w", rawURL, err)
+	}
+	return nil
 }
 
-// rejectInternalHost returns an error if host is localhost, a loopback address,
-// an RFC 1918 address, or a link-local address — all of which must not be used
-// as git servers to prevent SSRF via kpack build-time cloning.
-func rejectInternalHost(host string) error {
-	if strings.ToLower(host) == "localhost" {
-		return fmt.Errorf("git_server_url must not point to a local or internal host")
+// ValidateGitHubRepoName validates a GitHub repository name (not org/repo — just the repo part).
+func ValidateGitHubRepoName(name string) error {
+	if name == "" {
+		return fmt.Errorf("repo name is required")
 	}
-	ip := net.ParseIP(host)
-	if ip == nil {
-		return nil // hostname (not an IP) — allow
+	if len(name) > 100 {
+		return fmt.Errorf("repo name must be 100 characters or less")
 	}
-	for _, network := range internalCIDRs {
-		if network.Contains(ip) {
-			return fmt.Errorf("git_server_url must not point to an internal IP address (%s)", host)
+	if !githubRepoRegex.MatchString(name) {
+		return fmt.Errorf("repo name %q is invalid: must contain only letters, digits, hyphens, underscores, and dots", name)
+	}
+	return nil
+}
+
+// rejectPrivateHost returns an error if the hostname resolves to a private/internal IP.
+func rejectPrivateHost(host string) error {
+	// Parse private CIDR ranges once; ignore parse errors (they won't happen for hardcoded values)
+	var privateNets []*net.IPNet
+	for _, cidr := range privateRanges {
+		_, ipNet, _ := net.ParseCIDR(cidr)
+		if ipNet != nil {
+			privateNets = append(privateNets, ipNet)
 		}
+	}
+
+	// If host is a raw IP, check it directly
+	if ip := net.ParseIP(host); ip != nil {
+		for _, pNet := range privateNets {
+			if pNet.Contains(ip) {
+				return fmt.Errorf("host %q is a private/internal address and is not allowed", host)
+			}
+		}
+		return nil
+	}
+
+	// Resolve hostname and check each address
+	addrs, err := net.LookupHost(host)
+	if err != nil {
+		// If resolution fails, we can't confirm it's safe — reject it
+		return fmt.Errorf("host %q could not be resolved: %w", host, err)
+	}
+	for _, addr := range addrs {
+		ip := net.ParseIP(addr)
+		if ip == nil {
+			continue
+		}
+		for _, pNet := range privateNets {
+			if pNet.Contains(ip) {
+				return fmt.Errorf("host %q resolves to private/internal address %s and is not allowed", host, addr)
+			}
+		}
+	}
+	return nil
+}
+
+// ValidateEnvVarName validates that name is a valid environment variable name.
+// Returns a descriptive error if invalid.
+func ValidateEnvVarName(name string) error {
+	if name == "" {
+		return fmt.Errorf("env var name is required")
+	}
+	if !envVarNameRegex.MatchString(name) {
+		return fmt.Errorf("env var name %q is invalid: must match ^[A-Za-z_][A-Za-z0-9_]*$ (letters, digits, and underscores only; must start with a letter or underscore)", name)
 	}
 	return nil
 }
