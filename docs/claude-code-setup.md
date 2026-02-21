@@ -1,113 +1,143 @@
-# Using IAF with Claude Code
+# Connecting Claude Code to IAF
 
-## Quick Setup
+This guide walks through getting a Claude Code instance connected to the IAF platform so it can deploy and manage applications on Kubernetes.
 
-IAF runs entirely in Kubernetes. The MCP server is embedded in the API server and exposed as a Streamable HTTP endpoint.
+## Prerequisites
 
-### 1. Deploy the platform
+- IAF is deployed and healthy in your cluster (see [Operator Guide](operator-guide.md))
+- The platform is reachable at `http://iaf.localhost` (or your configured domain)
+- You have a Bearer token (default dev token: `iaf-dev-key`)
 
-Make sure the IAF platform is running in your cluster:
-
-```bash
-kubectl get pods -n iaf-system
-```
-
-You should see `iaf-apiserver` and `iaf-controller` pods running. If not, deploy them:
+Verify the platform is up:
 
 ```bash
-# Build the platform image (from the repo root)
-nerdctl build -t iaf-platform:latest .
-nerdctl save iaf-platform:latest | nerdctl --namespace k8s.io load
-
-# Apply the platform manifests
-kubectl apply -f config/deploy/platform.yaml
+curl http://iaf.localhost/health
+# {"status":"ok"}
 ```
 
-### 2. Add the MCP server to Claude Code
+---
 
-The MCP server is available at `http://iaf.localhost/mcp` via Traefik. Add it to Claude Code:
+## Step 1: Add the MCP server to Claude Code
+
+Run this command to register the IAF MCP server:
 
 ```bash
 claude mcp add --transport http iaf http://iaf.localhost/mcp
 ```
 
-### 3. Verify
+## Step 2: Add the auth header
 
-Start a new Claude Code session and ask it to list apps:
+Every request to the MCP endpoint requires a Bearer token. Open your Claude Code MCP config — either `.mcp.json` in your project directory or `~/.claude.json` — and add the `headers` field:
 
-```
-> list my deployed applications
-```
-
-Claude will use the `list_apps` MCP tool and show you results.
-
-## Available Tools
-
-Once configured, Claude Code has access to these tools:
-
-| Tool | What to say | Example |
-|------|------------|---------|
-| `deploy_app` | "Deploy nginx" | "Deploy an nginx app called my-site on port 80" |
-| `push_code` | "Deploy this code" | "Create a Node.js hello world app and deploy it" |
-| `app_status` | "Check status" | "What's the status of my-site?" |
-| `app_logs` | "Show logs" | "Show me the logs for my-site" |
-| `list_apps` | "List apps" | "What apps are deployed?" |
-| `delete_app` | "Delete app" | "Delete the my-site app" |
-
-## Example Conversations
-
-### Deploy a pre-built image
-
-```
-You: Deploy nginx as "marketing-site" on port 80
-Claude: [uses deploy_app] Created "marketing-site". It will be available at http://marketing-site.localhost
+```json
+{
+  "mcpServers": {
+    "iaf": {
+      "type": "http",
+      "url": "http://iaf.localhost/mcp",
+      "headers": {
+        "Authorization": "Bearer iaf-dev-key"
+      }
+    }
+  }
+}
 ```
 
-### Push source code directly
+Replace `iaf-dev-key` with your token if the operator has configured a different one.
+
+## Step 3: Verify the connection
+
+Start a new Claude Code session and run:
 
 ```
-You: Create a simple Express.js app that returns "hello world" and deploy it as "hello-api"
-Claude: [writes code, uses push_code] Source code uploaded and build started for "hello-api".
-         The platform will auto-detect Node.js and build a container. It will be available
-         at http://hello-api.localhost once the build completes.
+> /mcp
 ```
 
-### Check on your apps
+You should see `iaf` listed with all available tools (`register`, `push_code`, `deploy_app`, etc.).
+
+---
+
+## Step 4: Start using IAF
+
+The first thing Claude must do in any session is call `register` to get a `session_id`. All other tools require it. Claude will do this automatically when you ask it to deploy something — just give it a task:
 
 ```
-You: What's running right now?
-Claude: [uses list_apps] You have 2 applications deployed:
-        - marketing-site: Running at http://marketing-site.localhost
-        - hello-api: Building (kpack is building the container)
+> Create a Go hello world web server and deploy it as "hello-go"
 ```
 
-## Architecture
+Claude will:
+1. Call `register` to create an isolated session (your own Kubernetes namespace)
+2. Write the Go source code
+3. Call `push_code` to upload it — the platform auto-detects Go and builds a container
+4. Poll `app_status` until the build completes
+5. Report the URL once the app is running
+
+---
+
+## What Claude can do
+
+Once connected, Claude has access to these tools:
+
+| Tool | Description |
+|------|-------------|
+| `register` | Creates a session — Claude calls this automatically |
+| `push_code` | Upload source files and auto-build/deploy (Go, Node.js, Python, Java, Ruby) |
+| `deploy_app` | Deploy from a container image or git repository |
+| `app_status` | Check build/deploy progress and get the app URL |
+| `app_logs` | View application logs or build logs |
+| `list_apps` | List all deployed apps in the session |
+| `delete_app` | Delete an app and all its resources |
+| `add_git_credential` | Store a git credential for private repo access |
+| `list_git_credentials` | List stored credentials (no secrets returned) |
+| `delete_git_credential` | Remove a stored credential |
+| `list_data_sources` | Discover platform data sources (databases, APIs) |
+| `get_data_source` | Get details about a data source |
+| `attach_data_source` | Attach a data source — injects credentials as env vars into the app |
+
+---
+
+## Example prompts
+
+### Deploy from source
 
 ```
-Claude Code --HTTP--> http://iaf.localhost/mcp --Traefik--> iaf-apiserver (in K8s)
-                                                               |
-                                                         Application CR
-                                                               |
-                                                    iaf-controller (in K8s)
-                                                               |
-                                              Deployment + Service + IngressRoute
+Create a Python Flask app that returns {"status": "ok"} on GET /health and deploy it as "health-api".
 ```
 
-All components run in the `iaf-system` namespace. Each agent session gets its own isolated namespace.
+### Deploy a container image
+
+```
+Deploy nginx:alpine as "web" on port 80.
+```
+
+### Deploy from a private git repo
+
+```
+Store my GitHub token ghp_xxxx for https://github.com as "github-creds",
+then deploy https://github.com/myorg/myapp as "myapp".
+```
+
+### Check on apps
+
+```
+What apps are running? Show me the logs for hello-go.
+```
+
+### Use a data source
+
+```
+List available data sources, then attach prod-postgres to my app "api-server".
+```
+
+---
 
 ## Troubleshooting
 
-**"application not found"** — Check the platform is running: `kubectl get pods -n iaf-system`
-
-**Build stuck in "Building"** — Check kpack is running: `kubectl get pods -n kpack`
-
-**Can't reach app URL** — Make sure Traefik is running: `kubectl get pods -n kube-system -l app.kubernetes.io/name=traefik`
-
-**MCP connection fails** — Verify the endpoint: `curl http://iaf.localhost/health`
-
-**Rebuilding after code changes** — Rebuild and redeploy from the repo root:
-```bash
-nerdctl build -t iaf-platform:latest .
-nerdctl save iaf-platform:latest | nerdctl --namespace k8s.io load
-kubectl rollout restart deployment/iaf-apiserver deployment/iaf-controller -n iaf-system
-```
+| Problem | Fix |
+|---------|-----|
+| `iaf` not listed in `/mcp` | Check the `Authorization` header is set in your MCP config |
+| All tool calls fail with auth error | Verify the token matches `IAF_API_TOKENS` in the platform config |
+| App stuck in `Building` | Ask Claude: "Show me the build logs for \<app\>" — it will call `app_logs` with `build_logs: true` |
+| App stuck in `Deploying` | Check pod events: `kubectl get pods -n iaf-<session-id>` |
+| Can't reach the app URL | Verify Traefik is running: `kubectl get pods -A -l app.kubernetes.io/name=traefik` |
+| MCP endpoint unreachable | `curl http://iaf.localhost/health` — check Traefik IngressRoute: `kubectl get ingressroute -n iaf-system` |
