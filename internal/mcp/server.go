@@ -29,11 +29,14 @@ QUICK START:
 AVAILABLE TOOLS (all require session_id except register):
 - register: Get a session_id (CALL THIS FIRST)
 - push_code: Upload source code files to build and deploy (provide files as {"path": "content"} map)
-- deploy_app: Deploy from a container image or git repo
+- deploy_app: Deploy from a container image or git repo (use git_credential for private repos)
 - list_apps: See all your deployed apps
 - app_status: Check build/deploy progress for an app
 - app_logs: View application or build logs
 - delete_app: Remove an app and its resources
+- add_git_credential: Store a git credential (username/password or SSH key) for private repo access
+- list_git_credentials: List stored git credentials (no secrets returned)
+- delete_git_credential: Remove a git credential
 
 KEY DETAILS:
 - Apps are built automatically using Cloud Native Buildpacks (Go, Node.js, Python, Java, Ruby)
@@ -76,6 +79,9 @@ func NewServer(k8sClient client.Client, sessions *auth.SessionStore, store *sour
 	tools.RegisterRegisterTool(server, deps)
 	tools.RegisterDeployApp(server, deps)
 	tools.RegisterPushCode(server, deps)
+	tools.RegisterAddGitCredential(server, deps)
+	tools.RegisterListGitCredentials(server, deps)
+	tools.RegisterDeleteGitCredential(server, deps)
 	tools.RegisterAppStatus(server, deps)
 	if len(clientset) > 0 && clientset[0] != nil {
 		tools.RegisterAppLogsWithClientset(server, deps, clientset[0])

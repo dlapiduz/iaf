@@ -6,20 +6,24 @@ import (
 	"fmt"
 
 	iafv1alpha1 "github.com/dlapiduz/iaf/api/v1alpha1"
+	iafk8s "github.com/dlapiduz/iaf/internal/k8s"
 	gomcp "github.com/modelcontextprotocol/go-sdk/mcp"
+	corev1 "k8s.io/api/core/v1"
 	apierrors "k8s.io/apimachinery/pkg/api/errors"
 	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
+	"sigs.k8s.io/controller-runtime/pkg/client"
 )
 
 type DeployAppInput struct {
-	SessionID   string               `json:"session_id" jsonschema:"required - session ID returned by the register tool"`
-	Name        string               `json:"name" jsonschema:"required - application name (lowercase, hyphens allowed, becomes part of URL)"`
-	Image       string               `json:"image,omitempty" jsonschema:"container image to deploy (e.g. 'nginx:latest') - provide either image or git_url"`
-	GitURL      string               `json:"git_url,omitempty" jsonschema:"git repository URL to build from (e.g. 'https://github.com/user/repo') - provide either image or git_url"`
-	GitRevision string               `json:"git_revision,omitempty" jsonschema:"git branch, tag, or commit (default: main)"`
-	Port        int32                `json:"port,omitempty" jsonschema:"port your app listens on (default: 8080)"`
-	Replicas    int32                `json:"replicas,omitempty" jsonschema:"number of replicas (default: 1)"`
-	Env         []iafv1alpha1.EnvVar `json:"env,omitempty" jsonschema:"environment variables as [{name, value}]"`
+	SessionID     string               `json:"session_id" jsonschema:"required - session ID returned by the register tool"`
+	Name          string               `json:"name" jsonschema:"required - application name (lowercase, hyphens allowed, becomes part of URL)"`
+	Image         string               `json:"image,omitempty" jsonschema:"container image to deploy (e.g. 'nginx:latest') - provide either image or git_url"`
+	GitURL        string               `json:"git_url,omitempty" jsonschema:"git repository URL to build from (e.g. 'https://github.com/user/repo') - provide either image or git_url"`
+	GitRevision   string               `json:"git_revision,omitempty" jsonschema:"git branch, tag, or commit (default: main)"`
+	GitCredential string               `json:"git_credential,omitempty" jsonschema:"name of a git credential (from add_git_credential) to use when cloning a private repository"`
+	Port          int32                `json:"port,omitempty" jsonschema:"port your app listens on (default: 8080)"`
+	Replicas      int32                `json:"replicas,omitempty" jsonschema:"number of replicas (default: 1)"`
+	Env           []iafv1alpha1.EnvVar `json:"env,omitempty" jsonschema:"environment variables as [{name, value}]"`
 }
 
 func RegisterDeployApp(server *gomcp.Server, deps *Dependencies) {
@@ -36,6 +40,21 @@ func RegisterDeployApp(server *gomcp.Server, deps *Dependencies) {
 		}
 		if input.Image == "" && input.GitURL == "" {
 			return nil, nil, fmt.Errorf("either image or git_url is required")
+		}
+
+		// Validate git_credential if provided: the Secret must exist in the session namespace
+		// and must be an IAF-managed git credential.
+		if input.GitCredential != "" {
+			credSecret := &corev1.Secret{}
+			if err := deps.Client.Get(ctx, client.ObjectKey{Namespace: namespace, Name: input.GitCredential}, credSecret); err != nil {
+				if apierrors.IsNotFound(err) {
+					return nil, nil, fmt.Errorf("git credential %q not found; create it with add_git_credential first", input.GitCredential)
+				}
+				return nil, nil, fmt.Errorf("looking up git credential: %w", err)
+			}
+			if credSecret.Labels[iafk8s.LabelCredentialType] != "git" {
+				return nil, nil, fmt.Errorf("secret %q is not a git credential managed by IAF", input.GitCredential)
+			}
 		}
 
 		if err := deps.CheckAppNameAvailable(ctx, input.Name, namespace); err != nil {

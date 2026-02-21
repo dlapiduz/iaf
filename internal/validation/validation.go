@@ -3,6 +3,8 @@ package validation
 
 import (
 	"fmt"
+	"net"
+	"net/url"
 	"regexp"
 	"strings"
 )
@@ -17,6 +19,30 @@ var (
 
 	// githubRepoRe matches valid GitHub repository names.
 	githubRepoRe = regexp.MustCompile(`^[a-zA-Z0-9._-]+$`)
+
+	// sshGitURLRe matches SSH git server URLs in the form git@<host>.
+	// Host may contain alphanumerics, dots, and hyphens.
+	sshGitURLRe = regexp.MustCompile(`^git@[a-zA-Z0-9][a-zA-Z0-9.\-]*$`)
+
+	// internalCIDRs is the set of IP ranges that must never be used as git servers
+	// to prevent SSRF via kpack build-time git cloning.
+	internalCIDRs = func() []*net.IPNet {
+		ranges := []string{
+			"10.0.0.0/8",
+			"172.16.0.0/12",
+			"192.168.0.0/16",
+			"127.0.0.0/8",
+			"169.254.0.0/16",
+			"::1/128",
+			"fc00::/7",
+		}
+		nets := make([]*net.IPNet, 0, len(ranges))
+		for _, r := range ranges {
+			_, n, _ := net.ParseCIDR(r)
+			nets = append(nets, n)
+		}
+		return nets
+	}()
 )
 
 // ValidateAppName returns an error if name is not a valid Kubernetes DNS label.
@@ -76,6 +102,55 @@ func ValidateGitHubRepoName(name string) error {
 	}
 	if strings.Contains(name, "..") {
 		return fmt.Errorf("repository name %q must not contain '..'", name)
+	}
+	return nil
+}
+
+// ValidateBasicAuthGitServerURL validates a git server URL for basic-auth credentials.
+// The URL must use https:// and must not point to an RFC 1918 or loopback address.
+func ValidateBasicAuthGitServerURL(rawURL string) error {
+	if rawURL == "" {
+		return fmt.Errorf("git_server_url must not be empty")
+	}
+	u, err := url.Parse(rawURL)
+	if err != nil {
+		return fmt.Errorf("git_server_url %q is not a valid URL: %w", rawURL, err)
+	}
+	if u.Scheme != "https" {
+		return fmt.Errorf("git_server_url must use https:// scheme (got %q); http:// is not allowed", u.Scheme)
+	}
+	return rejectInternalHost(u.Hostname())
+}
+
+// ValidateSSHGitServerURL validates a git server URL for SSH credentials.
+// The URL must match the git@<host> pattern and must not point to an internal host.
+func ValidateSSHGitServerURL(rawURL string) error {
+	if rawURL == "" {
+		return fmt.Errorf("git_server_url must not be empty")
+	}
+	if !sshGitURLRe.MatchString(rawURL) {
+		return fmt.Errorf("git_server_url for ssh must match git@<host> pattern (e.g. git@github.com), got %q", rawURL)
+	}
+	at := strings.Index(rawURL, "@")
+	host := rawURL[at+1:]
+	return rejectInternalHost(host)
+}
+
+// rejectInternalHost returns an error if host is localhost, a loopback address,
+// an RFC 1918 address, or a link-local address — all of which must not be used
+// as git servers to prevent SSRF via kpack build-time cloning.
+func rejectInternalHost(host string) error {
+	if strings.ToLower(host) == "localhost" {
+		return fmt.Errorf("git_server_url must not point to a local or internal host")
+	}
+	ip := net.ParseIP(host)
+	if ip == nil {
+		return nil // hostname (not an IP) — allow
+	}
+	for _, network := range internalCIDRs {
+		if network.Contains(ip) {
+			return fmt.Errorf("git_server_url must not point to an internal IP address (%s)", host)
+		}
 	}
 	return nil
 }

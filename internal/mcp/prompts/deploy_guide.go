@@ -78,6 +78,15 @@ Before writing any code, read the org-level coding standards:
 - Prompt: ` + "`coding-guide`" + ` (accepts optional ` + "`language`" + ` argument) — markdown guide merging platform and org standards
 - Resource: ` + "`iaf://org/coding-standards`" + ` — machine-readable JSON standards document
 
+## Private Repository Access
+To clone a private git repository, you must first store a credential:
+1. Call ` + "`add_git_credential`" + ` with your session_id, a name, the type (` + "`basic-auth`" + ` or ` + "`ssh`" + `), and the git server URL.
+   - For ` + "`basic-auth`" + `: provide ` + "`git_server_url`" + ` as ` + "`https://github.com`" + ` (or your server), plus ` + "`username`" + ` and ` + "`password`" + ` (or a personal access token).
+   - For ` + "`ssh`" + `: provide ` + "`git_server_url`" + ` as ` + "`git@github.com`" + ` and ` + "`private_key`" + ` as your PEM-encoded SSH private key.
+2. Pass the credential name as ` + "`git_credential`" + ` when calling ` + "`deploy_app`" + `.
+3. To rotate a credential, call ` + "`delete_git_credential`" + ` then ` + "`add_git_credential`" + ` again.
+4. Credential material is never returned in any tool output — only name, type, and server URL are shown.
+
 ## Git-Based Deployment with GitHub
 When your code lives in a GitHub repository:
 - Call ` + "`setup_github_repo`" + ` to create the repo, apply branch protection, and commit a CI template.
