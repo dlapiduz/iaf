@@ -4,9 +4,9 @@ This guide covers how to use IAF once the platform is deployed and running in Ku
 
 ## Prerequisites
 
-- IAF is deployed in K3s (see installation docs)
-- The `iaf-apiserver`, `iaf-controller`, and kpack are running in the `iaf-system` namespace
-- Traefik is routing `iaf.localhost` to the apiserver
+- IAF is deployed in your cluster (see the [Operator Guide](operator-guide.md))
+- The `iaf-apiserver` and `iaf-controller` pods are running in `iaf-system`
+- Traefik is routing `iaf.localhost` to the API server
 
 Verify the platform is healthy:
 
@@ -15,13 +15,13 @@ curl http://iaf.localhost/health
 # {"status":"ok"}
 ```
 
+---
+
 ## Connecting Claude Code to IAF
 
-The apiserver exposes an MCP server at `http://iaf.localhost/mcp` via Streamable HTTP. The MCP endpoint requires a Bearer token for authentication (same tokens as the REST API).
+The API server exposes an MCP server at `http://iaf.localhost/mcp` via Streamable HTTP. Every request requires a Bearer token.
 
 ### Add the MCP server
-
-Run this from any project directory where you want Claude to have access to IAF:
 
 ```bash
 claude mcp add --transport http iaf http://iaf.localhost/mcp
@@ -36,7 +36,7 @@ Then add the authorization header. In your Claude Code MCP config (`.mcp.json` o
       "type": "http",
       "url": "http://iaf.localhost/mcp",
       "headers": {
-        "Authorization": "Bearer <your-api-token>"
+        "Authorization": "Bearer iaf-dev-key"
       }
     }
   }
@@ -45,107 +45,213 @@ Then add the authorization header. In your Claude Code MCP config (`.mcp.json` o
 
 ### Alternative: STDIO transport (local development)
 
-If you're developing IAF itself and want to run the MCP server as a local process:
+For developing IAF itself, run the MCP server as a local process:
 
 ```bash
 make build
 claude mcp add --transport stdio iaf -- ./bin/mcpserver
 ```
 
-This requires a valid kubeconfig on the local machine. The mcpserver reads the same `IAF_*` environment variables as the apiserver (see [Configuration](#configuration) below).
+This requires a valid kubeconfig on the local machine.
 
 ### Verify the connection
 
-Start Claude Code and check that the IAF tools are available:
+Start Claude Code and confirm the tools are available:
 
 ```
 > /mcp
-
-# You should see "iaf" listed with 7 tools, 2 prompts, and 3 resources
 ```
 
-## What Claude Can Do
+You should see `iaf` listed with all available tools.
 
-Once connected, Claude has access to tools, prompts, and resources through the MCP protocol.
+---
 
-### Tools (actions)
+## MCP Tools
+
+All tools (except `register`) require a `session_id` obtained from the `register` tool.
+
+### Session management
 
 | Tool | Description |
 |------|-------------|
-| `register` | **Call first.** Creates a session and returns a `session_id` required by all other tools |
-| `deploy_app` | Deploy an application from a container image or git repository |
-| `push_code` | Upload source code files and deploy — the platform auto-detects the language and builds a container |
-| `app_status` | Get the current status of an application (phase, URL, build status, replicas) |
-| `app_logs` | Get application or build logs |
-| `list_apps` | List all deployed applications in the current session |
+| `register` | **Call this first.** Creates an isolated session and returns a `session_id` required by all other tools |
+
+### Deployment tools
+
+| Tool | Description |
+|------|-------------|
+| `deploy_app` | Deploy from a container image (`image`), git repository (`git_url`), or source upload. Optional: `git_credential` for private repos |
+| `push_code` | Upload source code files as a map of `{"path": "content"}` — the platform auto-detects the language and builds a container |
+
+### Monitoring tools
+
+| Tool | Description |
+|------|-------------|
+| `app_status` | Current phase, URL, build status, replica count |
+| `app_logs` | Application logs or build logs (`build_logs: true`) |
+| `list_apps` | List all apps in your session (optional `status` filter) |
+
+### Lifecycle tools
+
+| Tool | Description |
+|------|-------------|
 | `delete_app` | Delete an application and all its resources |
 
-### Prompts (guidance)
+### Git credential tools (for private repositories)
 
-Prompts provide narrative context that helps Claude write correct, deployable code on the first try.
+| Tool | Description |
+|------|-------------|
+| `add_git_credential` | Store a git credential (basic-auth or SSH) for use with `deploy_app` |
+| `list_git_credentials` | List stored credentials (names and metadata only — no secret values) |
+| `delete_git_credential` | Remove a stored credential |
 
-| Prompt | Arguments | Description |
-|--------|-----------|-------------|
-| `deploy-guide` | none | Comprehensive deployment workflow — methods, lifecycle phases, naming constraints, security considerations |
-| `language-guide` | `language` (required) | Per-language buildpack guide — required files, minimal working example, detection rules, best practices. Supports: go, nodejs, python, java, ruby (with aliases like "golang", "node", "py", "rb") |
+### Data source tools
 
-### Resources (structured data)
+| Tool | Description |
+|------|-------------|
+| `list_data_sources` | List platform data sources (databases, APIs, etc.). Optional `kind` and `tags` filters |
+| `get_data_source` | Get details about a specific data source: kind, schema, env var names |
+| `attach_data_source` | Attach a data source to your app — credentials injected as env vars into the container |
 
-Resources provide machine-readable data that Claude can use for precise decision-making.
+---
+
+## MCP Prompts
+
+Prompts provide narrative guidance that helps agents write correct, deployable code.
+
+| Prompt | Description |
+|--------|-------------|
+| `deploy-guide` | Full deployment workflow — methods, lifecycle phases, naming rules, security, scaling |
+| `language-guide` | Per-language buildpack guide. Pass `language` argument: `go`, `nodejs`, `python`, `java`, `ruby` |
+| `coding-guide` | Organisation coding standards. Pass optional `language` argument |
+| `scaffold-guide` | Application scaffolding patterns and templates |
+
+---
+
+## MCP Resources
+
+Resources provide structured, machine-readable data.
 
 | Resource | URI | Description |
 |----------|-----|-------------|
-| `platform-info` | `iaf://platform` | Platform configuration as JSON — supported languages, build stack, deployment methods, defaults, routing |
-| `language-spec` | `iaf://languages/{language}` | Structured language data — buildpack ID, detection files, required/recommended files, environment variables |
-| `application-spec` | `iaf://schema/application` | Application CRD field reference — all spec/status fields, types, defaults, constraints |
+| `platform-info` | `iaf://platform` | Platform config JSON — supported languages, routing, build defaults |
+| `language-spec` | `iaf://languages/{language}` | Buildpack spec for a language — detection files, required structure, env vars |
+| `application-spec` | `iaf://schema/application` | Application CRD field reference — all spec/status fields and constraints |
+| `org-coding-standards` | `iaf://org/coding-standards` | Machine-readable organisation coding standards |
+| `data-catalog` | `iaf://catalog/data-sources` | JSON index of all registered data sources (no credential data) |
+
+---
 
 ## Example Workflows
 
 ### Deploy a Go app from scratch
 
-Ask Claude:
-
 ```
-Build and deploy a simple Go web server called "hello-go" that responds with
-"Hello, World!" on the root path and has a /health endpoint.
+Build and deploy a simple Go web server called "hello-go" that responds
+with "Hello, World!" on the root path and has a /health endpoint.
 ```
 
 Claude will:
-1. Read the `language-guide` prompt for Go to understand buildpack requirements
-2. Write `go.mod` and `main.go` with the correct structure
-3. Use `push_code` to upload the source files
-4. The platform auto-builds via kpack and deploys
-5. The app becomes available at `http://hello-go.localhost`
+1. Read the `language-guide` prompt for Go
+2. Write `go.mod` and `main.go` with the correct buildpack structure
+3. Call `push_code` to upload the files
+4. Monitor progress with `app_status`
+5. Report the URL once the app is running at `https://hello-go.example.com`
 
 ### Deploy from a container image
 
 ```
-Deploy nginx as an app called "webserver" using the nginx:alpine image on port 80.
+Deploy nginx:alpine as an app called "webserver" on port 80.
 ```
 
 ### Deploy from a git repository
 
 ```
-Deploy my app from https://github.com/user/myapp.git, call it "myapp".
+Deploy my app from https://github.com/myorg/myapp, call it "myapp".
+```
+
+### Deploy from a private git repository
+
+```
+Deploy from https://github.com/myorg/private-repo. Use my stored credential "github-creds".
+```
+
+If the credential doesn't exist yet:
+```
+Store my GitHub token (ghp_xxx) for https://github.com as "github-creds",
+then deploy https://github.com/myorg/private-repo as "myapp".
 ```
 
 ### Check on a running app
 
 ```
-What's the status of hello-go? Show me its logs.
+What's the status of hello-go? Show me the last 50 log lines.
 ```
 
-### Scale an application
+### Use a data source
+
+If your platform operator has registered a PostgreSQL data source called `prod-postgres`:
 
 ```
-Scale hello-go to 3 replicas.
+List available data sources, then attach prod-postgres to my app "api-server".
 ```
+
+Claude will call `list_data_sources`, then `attach_data_source`, which:
+- Copies the credentials into your session namespace
+- Patches the `api-server` Application CR
+- Triggers a rolling restart so the new env vars (`POSTGRES_HOST`, `POSTGRES_PASSWORD`, etc.) are available
+
+---
+
+## Application Lifecycle
+
+```
+Pending → Building → Deploying → Running
+                ↘        ↘
+                  Failed ←
+```
+
+| Phase | Description |
+|-------|-------------|
+| **Pending** | Application CR created, controller hasn't processed it yet |
+| **Building** | kpack is building source code into a container image (git/blob sources only) |
+| **Deploying** | Deployment and IngressRoute being created; pods not yet ready |
+| **Running** | ≥1 replica available, traffic is being served |
+| **Failed** | Build or deployment error — check `app_status` or `app_logs` |
+
+---
+
+## Supported Languages
+
+The platform uses Cloud Native Buildpacks (Paketo, Jammy LTS / Ubuntu 22.04) to auto-detect and build applications.
+
+| Language | Detection file(s) |
+|----------|-------------------|
+| Go | `go.mod` |
+| Node.js | `package.json` |
+| Python | `requirements.txt`, `setup.py`, `pyproject.toml` |
+| Java | `pom.xml`, `build.gradle`, `build.gradle.kts` |
+| Ruby | `Gemfile` |
+
+Containers run as non-root by default.
+
+---
+
+## Networking and TLS
+
+- Apps are exposed at `https://<name>.<base-domain>` via Traefik
+- **TLS is on by default** — cert-manager issues a certificate for each app automatically
+- Build logs visible during `Building` phase via `app_logs` with `build_logs: true`
+- Default container port: 8080 — your app must listen on this port unless you set a different `port`
+- Recommendation: implement a `/health` or `/healthz` endpoint for Kubernetes readiness probes
+
+---
 
 ## REST API
 
-The apiserver also exposes a REST API for non-MCP clients (dashboards, CI/CD, scripts). REST endpoints require a Bearer token (default: `iaf-dev-key`).
+The API server also exposes a REST API for non-MCP clients (dashboards, CI/CD, scripts).
 
-### Endpoints
+All REST endpoints require `Authorization: Bearer <token>`.
 
 | Method | Path | Description |
 |--------|------|-------------|
@@ -156,7 +262,7 @@ The apiserver also exposes a REST API for non-MCP clients (dashboards, CI/CD, sc
 | `GET` | `/api/v1/applications/:name` | Get application details |
 | `PUT` | `/api/v1/applications/:name` | Update an application |
 | `DELETE` | `/api/v1/applications/:name` | Delete an application |
-| `POST` | `/api/v1/applications/:name/source` | Upload source code (JSON or tarball) |
+| `POST` | `/api/v1/applications/:name/source` | Upload source code |
 | `GET` | `/api/v1/applications/:name/logs` | Get application logs |
 | `GET` | `/api/v1/applications/:name/build` | Get build logs |
 
@@ -169,72 +275,26 @@ curl -H "Authorization: Bearer iaf-dev-key" http://iaf.localhost/api/v1/applicat
 # Deploy from image
 curl -X POST -H "Authorization: Bearer iaf-dev-key" \
   -H "Content-Type: application/json" \
-  -d '{"name":"nginx","image":"nginx:alpine","port":80}' \
-  http://iaf.localhost/api/v1/applications
-
-# Deploy from git
-curl -X POST -H "Authorization: Bearer iaf-dev-key" \
-  -H "Content-Type: application/json" \
-  -d '{"name":"myapp","gitUrl":"https://github.com/user/myapp.git"}' \
+  -d '{"name":"webserver","image":"nginx:alpine","port":80}' \
   http://iaf.localhost/api/v1/applications
 
 # Check status
-curl -H "Authorization: Bearer iaf-dev-key" http://iaf.localhost/api/v1/applications/myapp
-
-# Upload source code
-curl -X POST -H "Authorization: Bearer iaf-dev-key" \
-  -H "Content-Type: application/json" \
-  -d '{"files":{"main.go":"package main\n\nimport \"net/http\"\n\nfunc main() { http.ListenAndServe(\":8080\", nil) }","go.mod":"module myapp\ngo 1.22"}}' \
-  http://iaf.localhost/api/v1/applications/myapp/source
-
-# View logs
-curl -H "Authorization: Bearer iaf-dev-key" http://iaf.localhost/api/v1/applications/myapp/logs?lines=50
+curl -H "Authorization: Bearer iaf-dev-key" http://iaf.localhost/api/v1/applications/webserver
 
 # Delete
-curl -X DELETE -H "Authorization: Bearer iaf-dev-key" http://iaf.localhost/api/v1/applications/myapp
+curl -X DELETE -H "Authorization: Bearer iaf-dev-key" http://iaf.localhost/api/v1/applications/webserver
 ```
 
-## Application Lifecycle
+---
 
-```
-Pending → Building → Deploying → Running
-                ↘        ↘         ↓
-                  Failed ← ← ← ← ←
-```
+## Troubleshooting
 
-| Phase | Description |
-|-------|-------------|
-| **Pending** | Application CR created, waiting for the controller to process it |
-| **Building** | kpack is building source code into a container image (git/blob sources only) |
-| **Deploying** | Kubernetes Deployment and Traefik IngressRoute are being created or updated |
-| **Running** | Pods are ready, traffic is being served at `http://<name>.localhost` |
-| **Failed** | Build or deployment failed — check `app_status` or `app_logs` for details |
-
-## Supported Languages
-
-The platform uses Cloud Native Buildpacks (Paketo) to automatically detect and build applications from source code.
-
-| Language | Detection Files | Buildpack |
-|----------|----------------|-----------|
-| Go | `go.mod` | `paketo-buildpacks/go` |
-| Node.js | `package.json` | `paketo-buildpacks/nodejs` |
-| Python | `requirements.txt`, `setup.py`, or `pyproject.toml` | `paketo-buildpacks/python` |
-| Java | `pom.xml`, `build.gradle`, or `build.gradle.kts` | `paketo-buildpacks/java` |
-| Ruby | `Gemfile` | `paketo-buildpacks/ruby` |
-
-All builds use the Paketo Jammy LTS stack (Ubuntu 22.04). Containers run as non-root by default.
-
-## Configuration
-
-The platform is configured via environment variables with the `IAF_` prefix.
-
-| Variable | Default | Description |
-|----------|---------|-------------|
-| `IAF_API_PORT` | `8080` | API server listen port |
-| `IAF_API_TOKENS` | `iaf-dev-key` | Comma-separated list of valid Bearer tokens for API and MCP authentication |
-| `IAF_BASE_DOMAIN` | `localhost` | Base domain for app routing (`<name>.<base_domain>`) |
-| `IAF_KUBECONFIG` | (default) | Path to kubeconfig file |
-| `IAF_CLUSTER_BUILDER` | `iaf-cluster-builder` | kpack ClusterBuilder name |
-| `IAF_REGISTRY_PREFIX` | `registry.localhost:5000/iaf` | Container registry prefix for built images |
-| `IAF_SOURCE_STORE_DIR` | `/tmp/iaf-sources` | Directory for source code tarballs |
-| `IAF_SOURCE_STORE_URL` | `http://iaf-source-store.iaf-system.svc.cluster.local` | URL for kpack to fetch source tarballs |
+| Problem | Solution |
+|---------|----------|
+| Tools not appearing in Claude | Check `/mcp` in Claude Code; verify `Authorization` header is set |
+| App stuck in `Building` | `app_logs` with `build_logs: true` to see kpack output |
+| App stuck in `Deploying` | Check `app_status` — pods may be in image pull error or crash loop |
+| `git_credential not found` | The credential name passed to `deploy_app` must match one returned by `list_git_credentials` |
+| `data source not found` | Use `list_data_sources` to see what's registered on your platform |
+| `env var X already defined` | The data source you're attaching shares an env var name with `app.Spec.Env` or another attached source |
+| TLS certificate not working | Verify cert-manager is installed and the ClusterIssuer exists: `kubectl get clusterissuers` |
