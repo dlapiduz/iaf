@@ -80,8 +80,15 @@ func RegisterApplicationSpec(server *gomcp.Server, deps *tools.Dependencies) {
 			},
 			"status": map[string]any{
 				"phase": map[string]any{
-					"type":   "string",
-					"enum":   []string{"Pending", "Building", "Deploying", "Running", "Failed"},
+					"type": "string",
+					"enum": []string{"Pending", "Building", "Deploying", "Running", "Failed"},
+					"phaseDescriptions": map[string]string{
+						"Pending":   "Application is accepted; waiting for controller to start processing.",
+						"Building":  "Source code or git repo is being built into a container image by kpack.",
+						"Deploying": "Image is resolved; Deployment is created; waiting for at least one pod replica to become available. URL is set.",
+						"Running":   "At least one pod replica is available and serving traffic.",
+						"Failed":    "Build or deployment has failed. Check buildStatus and conditions for details.",
+					},
 					"description": "Current lifecycle phase of the application.",
 				},
 				"url": map[string]any{
