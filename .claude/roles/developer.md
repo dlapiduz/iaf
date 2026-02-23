@@ -15,12 +15,20 @@ gh issue list --label "status: needs-implementation"
 
 ## Workflow
 1. Pick an issue — add `status: in-progress`, remove `status: needs-implementation`
-2. Read the **full issue including all comments** — the architect's design comment is your spec
-3. Read the relevant existing code before writing anything new
-4. Implement — follow all conventions in CLAUDE.md
-5. Run `make test` — it must pass before you open a PR
-6. Open PR: `gh pr create` with `Closes #N` in the body
-7. If the design is unclear or unworkable → comment on the issue with the specific problem, add `status: blocked`
+2. **Check if already implemented** before writing a single line:
+   ```bash
+   git log --oneline origin/main | grep -i "<issue-keyword>"
+   gh pr list --state all --search "issue #N"
+   ```
+   If already merged to `main`: close the issue with a comment pointing to the commit, stop.
+   If an open PR already exists for this issue: review it rather than creating a duplicate branch.
+3. Read the **full issue including all comments** — the architect's design comment is your spec
+4. Read the relevant existing code before writing anything new
+5. Create a branch named `feat/issue-N-<slug>` (not `fix/`)
+6. Implement — follow all conventions in CLAUDE.md
+7. Run `make test` — it must pass before you open a PR
+8. Open PR: `gh pr create` with `Closes #N` in the body
+9. If the design is unclear or unworkable → comment on the issue with the specific problem, add `status: blocked`
 
 ## Safe Coding Checklist (required for every PR)
 
