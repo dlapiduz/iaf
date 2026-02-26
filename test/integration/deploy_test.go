@@ -231,6 +231,11 @@ func TestDeploy_HelloWorld(t *testing.T) {
 	}
 	t.Logf("session_id: %s", sessionID)
 
+	// Derive a unique app name from the session ID to avoid cross-namespace
+	// hostname collisions if a previous test run didn't clean up.
+	appName := "hw-" + sessionID[:8]
+	t.Logf("app name: %s", appName)
+
 	// 2. Push a minimal Go hello-world app.
 	files := map[string]string{
 		"main.go": `package main
@@ -259,7 +264,7 @@ func main() {
 	}
 	pushResult := mustCallTool(t, cs, "push_code", map[string]any{
 		"session_id": sessionID,
-		"name":       "iaf-integration-test",
+		"name":       appName,
 		"port":       8080,
 		"files":      files,
 	})
@@ -272,7 +277,7 @@ func main() {
 		time.Sleep(15 * time.Second)
 		statusResult, err := callTool(cs, "app_status", map[string]any{
 			"session_id": sessionID,
-			"name":       "iaf-integration-test",
+			"name":       appName,
 		})
 		if err != nil {
 			t.Logf("app_status error: %v (still waiting)", err)
@@ -305,7 +310,7 @@ func main() {
 	// 5. Cleanup — delete the application.
 	deleteResult, err := callTool(cs, "delete_app", map[string]any{
 		"session_id": sessionID,
-		"name":       "iaf-integration-test",
+		"name":       appName,
 	})
 	if err != nil {
 		t.Logf("delete_app error (non-fatal): %v", err)
