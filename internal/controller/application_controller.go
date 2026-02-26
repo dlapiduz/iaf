@@ -31,6 +31,8 @@ import (
 // +kubebuilder:rbac:groups="",resources=secrets,verbs=create;get;list;delete
 // +kubebuilder:rbac:groups="",resources=serviceaccounts,verbs=create;get;update;patch
 // +kubebuilder:rbac:groups="",resources=namespaces,verbs=create;get
+// +kubebuilder:rbac:groups="",resources=pods,verbs=get;list
+// +kubebuilder:rbac:groups="",resources=pods/log,verbs=get
 // +kubebuilder:rbac:groups=kpack.io,resources=images,verbs=get;list;watch;create;update;patch;delete
 // +kubebuilder:rbac:groups=traefik.io,resources=ingressroutes,verbs=get;list;watch;create;update;patch;delete
 // +kubebuilder:rbac:groups=cert-manager.io,resources=certificates,verbs=get;list;watch;create;update;patch;delete
