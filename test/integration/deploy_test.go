@@ -16,11 +16,9 @@
 package integration
 
 import (
-	"bytes"
 	"context"
 	"encoding/json"
 	"fmt"
-	"io"
 	"net/http"
 	"os"
 	"testing"
@@ -30,6 +28,8 @@ import (
 	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
 	"k8s.io/client-go/kubernetes"
 	"k8s.io/client-go/tools/clientcmd"
+
+	gomcp "github.com/modelcontextprotocol/go-sdk/mcp"
 )
 
 const (
@@ -68,32 +68,79 @@ func apiToken() string {
 	return defaultToken
 }
 
-func apiCall(t *testing.T, method, path string, body any) (int, map[string]any) {
+// authTransport injects a Bearer token into every outgoing request.
+type authTransport struct {
+	base  http.RoundTripper
+	token string
+}
+
+func (a *authTransport) RoundTrip(r *http.Request) (*http.Response, error) {
+	r = r.Clone(r.Context())
+	r.Header.Set("Authorization", "Bearer "+a.token)
+	return a.base.RoundTrip(r)
+}
+
+// newMCPClient connects to the live IAF MCP endpoint and returns a ClientSession.
+func newMCPClient(t *testing.T) *gomcp.ClientSession {
 	t.Helper()
-	var r io.Reader
-	if body != nil {
-		b, err := json.Marshal(body)
-		if err != nil {
-			t.Fatalf("marshaling request: %v", err)
+	transport := &gomcp.StreamableClientTransport{
+		Endpoint: apiURL() + "/mcp",
+		HTTPClient: &http.Client{
+			Transport: &authTransport{
+				base:  http.DefaultTransport,
+				token: apiToken(),
+			},
+		},
+		DisableStandaloneSSE: true,
+	}
+	c := gomcp.NewClient(&gomcp.Implementation{Name: "integration-test", Version: "0.0.1"}, nil)
+	cs, err := c.Connect(context.Background(), transport, nil)
+	if err != nil {
+		t.Fatalf("connecting to MCP server at %s/mcp: %v", apiURL(), err)
+	}
+	t.Cleanup(func() { cs.Close() })
+	return cs
+}
+
+// callTool invokes an MCP tool and returns the parsed JSON result.
+// Returns an error instead of calling t.Fatal so callers can handle failures
+// gracefully (e.g. poll loops).
+func callTool(cs *gomcp.ClientSession, name string, args map[string]any) (map[string]any, error) {
+	res, err := cs.CallTool(context.Background(), &gomcp.CallToolParams{
+		Name:      name,
+		Arguments: args,
+	})
+	if err != nil {
+		return nil, fmt.Errorf("tool %q: %w", name, err)
+	}
+	if res.IsError {
+		msg := name + " returned error"
+		if len(res.Content) > 0 {
+			if tc, ok := res.Content[0].(*gomcp.TextContent); ok {
+				msg = tc.Text
+			}
 		}
-		r = bytes.NewReader(b)
+		return nil, fmt.Errorf("tool %q error: %s", name, msg)
 	}
-	req, err := http.NewRequest(method, apiURL()+path, r)
-	if err != nil {
-		t.Fatalf("building request: %v", err)
-	}
-	req.Header.Set("Authorization", "Bearer "+apiToken())
-	if body != nil {
-		req.Header.Set("Content-Type", "application/json")
-	}
-	resp, err := http.DefaultClient.Do(req)
-	if err != nil {
-		t.Fatalf("%s %s: %v", method, path, err)
-	}
-	defer resp.Body.Close()
 	var result map[string]any
-	json.NewDecoder(resp.Body).Decode(&result)
-	return resp.StatusCode, result
+	if len(res.Content) > 0 {
+		if tc, ok := res.Content[0].(*gomcp.TextContent); ok {
+			if err := json.Unmarshal([]byte(tc.Text), &result); err != nil {
+				return nil, fmt.Errorf("parsing tool %q response: %w", name, err)
+			}
+		}
+	}
+	return result, nil
+}
+
+// mustCallTool calls callTool and fatals on error.
+func mustCallTool(t *testing.T, cs *gomcp.ClientSession, name string, args map[string]any) map[string]any {
+	t.Helper()
+	result, err := callTool(cs, name, args)
+	if err != nil {
+		t.Fatalf("mustCallTool %q: %v", name, err)
+	}
+	return result
 }
 
 // checkSAR uses SubjectAccessReview to verify the iaf-platform service account
@@ -171,17 +218,16 @@ func TestRBAC_PlatformSAPermissions(t *testing.T) {
 
 // ----- Deploy flow test ------------------------------------------------------
 
-// TestDeploy_HelloWorld exercises the full deploy flow via the REST API:
-// register → push_code → poll until Running → verify URL responds → cleanup.
+// TestDeploy_HelloWorld exercises the full deploy flow via MCP tools:
+// register → push_code → poll until Running → verify URL responds → delete_app.
 func TestDeploy_HelloWorld(t *testing.T) {
+	cs := newMCPClient(t)
+
 	// 1. Register a session.
-	code, body := apiCall(t, "POST", "/api/v1/sessions", map[string]any{"name": "integration-test"})
-	if code != 200 && code != 201 {
-		t.Fatalf("register: expected 200/201, got %d body=%v", code, body)
-	}
-	sessionID, _ := body["session_id"].(string)
+	regResult := mustCallTool(t, cs, "register", map[string]any{"name": "integration-test"})
+	sessionID, _ := regResult["session_id"].(string)
 	if sessionID == "" {
-		t.Fatalf("register: no session_id in response: %v", body)
+		t.Fatalf("register: no session_id in response: %v", regResult)
 	}
 	t.Logf("session_id: %s", sessionID)
 
@@ -201,45 +247,45 @@ func main() {
 		port = "8080"
 	}
 	http.HandleFunc("/health", func(w http.ResponseWriter, r *http.Request) {
-		fmt.Fprintln(w, `+"`"+`{"status":"ok"}`+"`"+`)
+		fmt.Fprintln(w, ` + "`" + `{"status":"ok"}` + "`" + `)
 	})
 	http.HandleFunc("/", func(w http.ResponseWriter, r *http.Request) {
-		fmt.Fprintln(w, `+"`"+`{"message":"Hello, World!"}`+"`"+`)
+		fmt.Fprintln(w, ` + "`" + `{"message":"Hello, World!"}` + "`" + `)
 	})
 	http.ListenAndServe(":"+port, nil)
 }
 `,
 		"go.mod": "module hello\n\ngo 1.21\n",
 	}
-	code, body = apiCall(t, "POST", "/api/v1/sessions/"+sessionID+"/applications", map[string]any{
-		"name":  "iaf-integration-test",
-		"port":  8080,
-		"files": files,
+	pushResult := mustCallTool(t, cs, "push_code", map[string]any{
+		"session_id": sessionID,
+		"name":       "iaf-integration-test",
+		"port":       8080,
+		"files":      files,
 	})
-	if code != 200 && code != 201 {
-		t.Fatalf("push_code: expected 200/201, got %d body=%v", code, body)
-	}
-	t.Logf("push_code response: %v", body)
+	t.Logf("push_code response: %v", pushResult)
 
 	// 3. Poll until Running (up to 5 minutes).
 	deadline := time.Now().Add(5 * time.Minute)
 	var appURL string
 	for time.Now().Before(deadline) {
 		time.Sleep(15 * time.Second)
-		code, statusBody := apiCall(t, "GET",
-			"/api/v1/sessions/"+sessionID+"/applications/iaf-integration-test", nil)
-		if code != 200 {
-			t.Logf("app_status: %d %v (still waiting)", code, statusBody)
+		statusResult, err := callTool(cs, "app_status", map[string]any{
+			"session_id": sessionID,
+			"name":       "iaf-integration-test",
+		})
+		if err != nil {
+			t.Logf("app_status error: %v (still waiting)", err)
 			continue
 		}
-		phase, _ := statusBody["phase"].(string)
-		t.Logf("phase=%s buildStatus=%s", phase, statusBody["buildStatus"])
+		phase, _ := statusResult["phase"].(string)
+		t.Logf("phase=%s buildStatus=%s", phase, statusResult["buildStatus"])
 		if phase == "Running" {
-			appURL, _ = statusBody["url"].(string)
+			appURL, _ = statusResult["url"].(string)
 			break
 		}
 		if phase == "Failed" {
-			t.Fatalf("app entered Failed phase: %v", statusBody)
+			t.Fatalf("app entered Failed phase: %v", statusResult)
 		}
 	}
 	if appURL == "" {
@@ -247,7 +293,7 @@ func main() {
 	}
 
 	// 4. Verify the app responds.
-	resp, err := http.Get(appURL)
+	resp, err := http.Get(appURL) //nolint:noctx
 	if err != nil {
 		t.Fatalf("GET %s: %v", appURL, err)
 	}
@@ -257,9 +303,13 @@ func main() {
 	}
 
 	// 5. Cleanup — delete the application.
-	code, _ = apiCall(t, "DELETE",
-		"/api/v1/sessions/"+sessionID+"/applications/iaf-integration-test", nil)
-	if code != 200 && code != 204 {
-		t.Logf("delete app returned %d (non-fatal)", code)
+	deleteResult, err := callTool(cs, "delete_app", map[string]any{
+		"session_id": sessionID,
+		"name":       "iaf-integration-test",
+	})
+	if err != nil {
+		t.Logf("delete_app error (non-fatal): %v", err)
+	} else {
+		t.Logf("delete_app response: %v", deleteResult)
 	}
 }
