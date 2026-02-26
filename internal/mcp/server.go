@@ -40,6 +40,12 @@ AVAILABLE TOOLS (all require session_id except register):
 - list_data_sources: List all platform data sources (databases, APIs, etc.)
 - get_data_source: Get details about a specific data source including env var names
 - attach_data_source: Attach a data source to your app (injects credentials as env vars)
+- provision_service: Provision a managed backing service (e.g. PostgreSQL) — poll service_status every 10s until Ready
+- service_status: Check provisioning status; returns connectionEnvVars when Ready
+- bind_service: Inject service credentials into an app as K8s Secret references
+- unbind_service: Remove service credentials from an app
+- deprovision_service: Delete a managed service (must unbind all apps first)
+- list_services: List all managed services in your namespace
 
 KEY DETAILS:
 - Apps are built automatically using Cloud Native Buildpacks (Go, Node.js, Python, Java, Ruby)
@@ -96,11 +102,18 @@ func NewServer(k8sClient client.Client, sessions *auth.SessionStore, store *sour
 	tools.RegisterListDataSources(server, deps)
 	tools.RegisterGetDataSource(server, deps)
 	tools.RegisterAttachDataSource(server, deps)
+	tools.RegisterProvisionService(server, deps)
+	tools.RegisterServiceStatus(server, deps)
+	tools.RegisterBindService(server, deps)
+	tools.RegisterUnbindService(server, deps)
+	tools.RegisterDeprovisionService(server, deps)
+	tools.RegisterListServices(server, deps)
 
 	prompts.RegisterDeployGuide(server, deps)
 	prompts.RegisterLanguageGuide(server, deps)
 	prompts.RegisterCodingGuide(server, deps)
 	prompts.RegisterScaffoldGuide(server, deps)
+	prompts.RegisterServicesGuide(server, deps)
 
 	resources.RegisterPlatformInfo(server, deps)
 	resources.RegisterLanguageResources(server, deps)

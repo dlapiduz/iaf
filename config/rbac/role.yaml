@@ -136,3 +136,53 @@ rules:
   - patch
   - update
   - watch
+- apiGroups:
+  - iaf.io
+  resources:
+  - managedservices
+  verbs:
+  - create
+  - delete
+  - get
+  - list
+  - patch
+  - update
+  - watch
+- apiGroups:
+  - iaf.io
+  resources:
+  - managedservices/finalizers
+  verbs:
+  - update
+- apiGroups:
+  - iaf.io
+  resources:
+  - managedservices/status
+  verbs:
+  - get
+  - patch
+  - update
+- apiGroups:
+  - postgresql.cnpg.io
+  resources:
+  - clusters
+  verbs:
+  - create
+  - delete
+  - get
+  - list
+  - patch
+  - update
+  - watch
+- apiGroups:
+  - networking.k8s.io
+  resources:
+  - networkpolicies
+  verbs:
+  - create
+  - delete
+  - get
+  - list
+  - patch
+  - update
+  - watch

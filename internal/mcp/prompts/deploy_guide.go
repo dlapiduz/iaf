@@ -94,6 +94,14 @@ When your code lives in a GitHub repository:
 - Read ` + "`iaf://org/github-standards`" + ` for the machine-readable GitHub standards document.
 - Use ` + "`deploy_app`" + ` with ` + "`git_url`" + ` set to the clone URL returned by ` + "`setup_github_repo`" + `.
 
+## Persistent Data
+
+**Do NOT deploy databases as Applications** (e.g. do not use a postgres Docker image as an Application spec). Use ` + "`provision_service`" + ` instead — it provisions a properly managed, isolated PostgreSQL database via CloudNativePG.
+
+Workflow: ` + "`provision_service`" + ` → poll ` + "`service_status`" + ` every 10s until Ready → ` + "`bind_service`" + ` → use ` + "`DATABASE_URL`" + ` env var in your application.
+
+See the ` + "`services-guide`" + ` prompt for full details.
+
 ## Recommended Workflow
 1. Call ` + "`register`" + ` to get a session_id.
 2. Read the ` + "`coding-guide`" + ` prompt to understand org coding standards.

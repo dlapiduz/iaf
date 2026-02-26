@@ -94,8 +94,20 @@ type GitSource struct {
 type EnvVar struct {
 	// Name of the environment variable.
 	Name string `json:"name"`
-	// Value of the environment variable.
-	Value string `json:"value"`
+	// Value of the environment variable. Mutually exclusive with SecretKeyRef.
+	// +optional
+	Value string `json:"value,omitempty"`
+	// SecretKeyRef references a key in a Kubernetes Secret. Mutually exclusive with Value.
+	// +optional
+	SecretKeyRef *SecretKeyRef `json:"secretKeyRef,omitempty"`
+}
+
+// SecretKeyRef selects a key from a Secret.
+type SecretKeyRef struct {
+	// Name is the name of the Kubernetes Secret.
+	Name string `json:"name"`
+	// Key is the key within the Secret.
+	Key string `json:"key"`
 }
 
 // ApplicationPhase represents the current lifecycle phase of an Application.
