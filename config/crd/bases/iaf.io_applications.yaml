@@ -90,12 +90,26 @@ spec:
                     name:
                       description: Name of the environment variable.
                       type: string
+                    secretKeyRef:
+                      description: SecretKeyRef references a key in a Kubernetes Secret.
+                        Mutually exclusive with Value.
+                      properties:
+                        key:
+                          description: Key is the key within the Secret.
+                          type: string
+                        name:
+                          description: Name is the name of the Kubernetes Secret.
+                          type: string
+                      required:
+                      - key
+                      - name
+                      type: object
                     value:
-                      description: Value of the environment variable.
+                      description: Value of the environment variable. Mutually exclusive
+                        with SecretKeyRef.
                       type: string
                   required:
                   - name
-                  - value
                   type: object
                 type: array
               git:
