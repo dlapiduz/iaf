@@ -1,0 +1,33 @@
+{
+  "version": "1.0",
+  "method": "RED",
+  "endpoint": {
+    "path": "/metrics",
+    "portSource": "same as spec.port unless spec.metrics.port is set",
+    "format": "prometheus-text"
+  },
+  "requiredMetrics": [
+    {
+      "name": "http_requests_total",
+      "type": "counter",
+      "labels": ["method", "path", "status_code"],
+      "description": "Total HTTP requests by method, path, and status code."
+    },
+    {
+      "name": "http_request_duration_seconds",
+      "type": "histogram",
+      "buckets": [0.005, 0.01, 0.025, 0.05, 0.1, 0.25, 0.5, 1.0, 2.5],
+      "labels": ["method", "path"],
+      "description": "HTTP request duration in seconds."
+    }
+  ],
+  "standardLabels": {
+    "app":     "Set automatically from pod label app.kubernetes.io/name (set by IAF controller)",
+    "version": "Set automatically from pod label app.kubernetes.io/version (set by IAF controller)"
+  },
+  "histogramBuckets": [0.005, 0.01, 0.025, 0.05, 0.1, 0.25, 0.5, 1.0, 2.5],
+  "registration": {
+    "how": "Expose a /metrics endpoint in Prometheus text format; the platform scrapes it automatically",
+    "verify": "curl http://<app-host>/metrics and confirm Prometheus-format output"
+  }
+}

@@ -63,7 +63,7 @@ CODING STANDARDS:
 // If loader is non-nil, org standards are served from that loader; otherwise platform defaults are used.
 // ghClient may be nil — GitHub tools are omitted when it is not set.
 // If clientset is non-nil, app_logs will stream real logs from pods.
-func NewServer(k8sClient client.Client, sessions *auth.SessionStore, store *sourcestore.Store, baseDomain string, loader *orgstandards.Loader, ghClient iafgithub.Client, ghOrg, ghToken string, clientset ...kubernetes.Interface) *gomcp.Server {
+func NewServer(k8sClient client.Client, sessions *auth.SessionStore, store *sourcestore.Store, baseDomain string, loader *orgstandards.Loader, ghClient iafgithub.Client, ghOrg, ghToken string, tempoURL string, clientset ...kubernetes.Interface) *gomcp.Server {
 	server := gomcp.NewServer(
 		&gomcp.Implementation{
 			Name:    "iaf",
@@ -83,6 +83,7 @@ func NewServer(k8sClient client.Client, sessions *auth.SessionStore, store *sour
 		GitHub:       ghClient,
 		GitHubOrg:    ghOrg,
 		GitHubToken:  ghToken,
+		TempoURL:     tempoURL,
 	}
 
 	tools.RegisterRegisterTool(server, deps)
@@ -114,6 +115,9 @@ func NewServer(k8sClient client.Client, sessions *auth.SessionStore, store *sour
 	prompts.RegisterCodingGuide(server, deps)
 	prompts.RegisterScaffoldGuide(server, deps)
 	prompts.RegisterServicesGuide(server, deps)
+	prompts.RegisterLoggingGuide(server, deps)
+	prompts.RegisterMetricsGuide(server, deps)
+	prompts.RegisterTracingGuide(server, deps)
 
 	resources.RegisterPlatformInfo(server, deps)
 	resources.RegisterLanguageResources(server, deps)
@@ -121,6 +125,9 @@ func NewServer(k8sClient client.Client, sessions *auth.SessionStore, store *sour
 	resources.RegisterOrgStandards(server, deps)
 	resources.RegisterScaffoldResource(server, deps)
 	resources.RegisterDataCatalog(server, deps)
+	resources.RegisterLoggingStandards(server, deps)
+	resources.RegisterMetricsStandards(server, deps)
+	resources.RegisterTracingStandards(server, deps)
 
 	// GitHub components — registered only when a token and org are configured.
 	if deps.GitHub != nil {

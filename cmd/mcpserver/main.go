@@ -73,7 +73,7 @@ func main() {
 		}
 	}
 
-	server := iafmcp.NewServer(k8sClient, sessions, store, cfg.BaseDomain, orgLoader, ghClient, cfg.GitHubOrg, cfg.GitHubToken, clientset)
+	server := iafmcp.NewServer(k8sClient, sessions, store, cfg.BaseDomain, orgLoader, ghClient, cfg.GitHubOrg, cfg.GitHubToken, cfg.TempoURL, clientset)
 
 	logger.Info("starting MCP server", "transport", cfg.MCPTransport)
 

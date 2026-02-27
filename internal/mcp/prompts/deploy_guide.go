@@ -102,6 +102,23 @@ Workflow: ` + "`provision_service`" + ` → poll ` + "`service_status`" + ` ever
 
 See the ` + "`services-guide`" + ` prompt for full details.
 
+## Observability
+
+### Logging
+Log to stdout in JSON Lines format. Logs are collected automatically — no configuration needed.
+- Full guide: ` + "`logging-guide`" + ` prompt (accepts optional ` + "`language`" + ` argument)
+- Standard: ` + "`iaf://org/logging-standards`" + `
+
+### Metrics
+Expose a ` + "`/metrics`" + ` endpoint in Prometheus text format. Use the RED method: ` + "`http_requests_total`" + ` and ` + "`http_request_duration_seconds`" + `.
+- Full guide: ` + "`metrics-guide`" + ` prompt (accepts optional ` + "`language`" + ` argument)
+- Standard: ` + "`iaf://org/metrics-standards`" + `
+
+### Tracing
+The platform injects ` + "`OTEL_EXPORTER_OTLP_ENDPOINT`" + ` and ` + "`OTEL_SERVICE_NAME`" + ` automatically. Use the OTel SDK — do not hardcode the endpoint.
+- Full guide: ` + "`tracing-guide`" + ` prompt (accepts optional ` + "`language`" + ` argument)
+- Standard: ` + "`iaf://org/tracing-standards`" + `
+
 ## Recommended Workflow
 1. Call ` + "`register`" + ` to get a session_id.
 2. Read the ` + "`coding-guide`" + ` prompt to understand org coding standards.

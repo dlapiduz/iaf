@@ -23,6 +23,14 @@ type Dependencies struct {
 	GitHub      iafgithub.Client
 	GitHubToken string // stored but never surfaced in output or logs
 	GitHubOrg   string
+	// Observability standards — optional override file paths.
+	// When empty the embedded defaults in config/org-standards/*.json are used.
+	LoggingStandardsFile string
+	MetricsStandardsFile string
+	TracingStandardsFile string
+	// TempoURL is the Grafana base URL used to build traceExploreUrl in
+	// app_status responses. Set from IAF_TEMPO_URL. Empty = feature disabled.
+	TempoURL string
 }
 
 // ResolveNamespace looks up the session and returns its namespace.

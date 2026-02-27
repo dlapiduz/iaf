@@ -40,6 +40,10 @@ type Config struct {
 	// GitHub integration (optional — GitHub features are disabled when token is empty)
 	GitHubToken string `mapstructure:"github_token"`
 	GitHubOrg   string `mapstructure:"github_org"`
+
+	// Observability (optional — features are disabled when URLs are empty)
+	// TempoURL is the Grafana base URL for trace explore links (IAF_TEMPO_URL).
+	TempoURL string `mapstructure:"tempo_url"`
 }
 
 // Load reads configuration from environment variables and defaults.
@@ -60,6 +64,7 @@ func Load() (*Config, error) {
 	v.SetDefault("org_standards_file", "")
 	v.SetDefault("github_token", "")
 	v.SetDefault("github_org", "")
+	v.SetDefault("tempo_url", "")
 
 	v.SetEnvPrefix("IAF")
 	v.SetEnvKeyReplacer(strings.NewReplacer(".", "_"))
