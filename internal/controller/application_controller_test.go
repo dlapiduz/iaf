@@ -359,6 +359,44 @@ func TestReconcile_TLS_HTTPSURLWhenIssuerSet(t *testing.T) {
 	}
 }
 
+// TestReconcile_TLSIssuerEmpty_NoCertManager is a regression test for the bug
+// where tls_issuer defaulted to "selfsigned-issuer", causing every reconcile to
+// return "no matches for kind Certificate" on clusters without cert-manager.
+// When TLSIssuer is empty the controller must skip all Certificate operations,
+// the URL must be http://, and no Certificate CR must exist.
+func TestReconcile_TLSIssuerEmpty_NoCertManager(t *testing.T) {
+	// newReconciler leaves TLSIssuer unset (""), which is the post-fix default.
+	// cert-manager types are NOT registered in the scheme, so any attempt to
+	// Get/Create a Certificate would produce an "unregistered type" panic or error.
+	scheme := newTestScheme(t)
+	r := newReconciler(scheme)
+	ctx := context.Background()
+
+	app := makeApp("myapp", "test-ns")
+	if err := r.Create(ctx, app); err != nil {
+		t.Fatal(err)
+	}
+
+	// Must not return an error even though cert-manager is absent.
+	reconcileApp(t, r, "myapp", "test-ns")
+
+	var result iafv1alpha1.Application
+	if err := r.Get(ctx, types.NamespacedName{Name: "myapp", Namespace: "test-ns"}, &result); err != nil {
+		t.Fatal(err)
+	}
+	if want := "http://myapp.example.com"; result.Status.URL != want {
+		t.Errorf("expected HTTP URL when TLSIssuer is empty, got %q", result.Status.URL)
+	}
+
+	// No Certificate CR should have been created.
+	cert := &unstructured.Unstructured{}
+	cert.SetGroupVersionKind(iafk8s.CertificateGVK)
+	err := r.Get(ctx, types.NamespacedName{Name: "myapp", Namespace: "test-ns"}, cert)
+	if !apierrors.IsNotFound(err) {
+		t.Errorf("expected no Certificate CR when TLSIssuer is empty, got err=%v", err)
+	}
+}
+
 // TestReconcile_TLS_OptOut verifies that when an app sets tls.enabled=false,
 // the status URL uses http:// and no Certificate CR is created, even when
 // TLSIssuer is configured.

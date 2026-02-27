@@ -43,7 +43,7 @@ func setupIntegrationServer(t *testing.T) *gomcp.ClientSession {
 		t.Fatal(err)
 	}
 
-	server := iafmcp.NewServer(k8sClient, sessions, store, "test.example.com", nil, nil, "", "")
+	server := iafmcp.NewServer(k8sClient, sessions, store, "test.example.com", nil, nil, "", "", "")
 
 	st, ct := gomcp.NewInMemoryTransports()
 	if _, err := server.Connect(ctx, st, nil); err != nil {
@@ -121,7 +121,7 @@ func TestNewServer_RegistersAllPrompts(t *testing.T) {
 		t.Fatal(err)
 	}
 
-	expectedPrompts := []string{"deploy-guide", "language-guide", "coding-guide", "scaffold-guide"}
+	expectedPrompts := []string{"deploy-guide", "language-guide", "coding-guide", "scaffold-guide", "services-guide", "logging-guide", "metrics-guide", "tracing-guide"}
 	promptNames := map[string]bool{}
 	for _, p := range res.Prompts {
 		promptNames[p.Name] = true
@@ -142,7 +142,7 @@ func TestNewServer_RegistersAllResources(t *testing.T) {
 		t.Fatal(err)
 	}
 
-	expectedResources := []string{"platform-info", "application-spec", "org-coding-standards", "data-catalog"}
+	expectedResources := []string{"platform-info", "application-spec", "org-coding-standards", "data-catalog", "org-logging-standards", "org-metrics-standards", "org-tracing-standards"}
 	resourceNames := map[string]bool{}
 	for _, r := range res.Resources {
 		resourceNames[r.Name] = true
@@ -193,7 +193,7 @@ func setupGitHubIntegrationServer(t *testing.T) *gomcp.ClientSession {
 	}
 
 	ghClient := &iafgithub.MockClient{}
-	server := iafmcp.NewServer(k8sClient, sessions, store, "test.example.com", nil, ghClient, "test-org", "test-token")
+	server := iafmcp.NewServer(k8sClient, sessions, store, "test.example.com", nil, ghClient, "test-org", "test-token", "")
 
 	st, ct := gomcp.NewInMemoryTransports()
 	if _, err := server.Connect(ctx, st, nil); err != nil {
@@ -300,9 +300,9 @@ func setupServerForLogs(t *testing.T, withClientset bool) (*gomcp.ClientSession,
 	var server *gomcp.Server
 	if withClientset {
 		cs := k8sfake.NewSimpleClientset()
-		server = iafmcp.NewServer(k8sClient, sessions, store, "test.example.com", nil, nil, "", "", cs)
+		server = iafmcp.NewServer(k8sClient, sessions, store, "test.example.com", nil, nil, "", "", "", cs)
 	} else {
-		server = iafmcp.NewServer(k8sClient, sessions, store, "test.example.com", nil, nil, "", "")
+		server = iafmcp.NewServer(k8sClient, sessions, store, "test.example.com", nil, nil, "", "", "")
 	}
 
 	st, ct := gomcp.NewInMemoryTransports()

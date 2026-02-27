@@ -28,6 +28,9 @@ func setupServer(t *testing.T) *gomcp.ClientSession {
 	resources.RegisterApplicationSpec(server, deps)
 	resources.RegisterOrgStandards(server, deps)
 	resources.RegisterScaffoldResource(server, deps)
+	resources.RegisterLoggingStandards(server, deps)
+	resources.RegisterMetricsStandards(server, deps)
+	resources.RegisterTracingStandards(server, deps)
 
 	return connectServer(t, ctx, server)
 }
@@ -275,16 +278,16 @@ func TestListResources(t *testing.T) {
 		t.Fatal(err)
 	}
 
-	// Should have 3 static resources (platform-info, application-spec, org-coding-standards)
-	if len(res.Resources) != 3 {
-		t.Fatalf("expected 3 resources, got %d", len(res.Resources))
+	// Should have 6 static resources (platform-info, application-spec, org-coding-standards + 3 observability)
+	if len(res.Resources) != 6 {
+		t.Fatalf("expected 6 resources, got %d", len(res.Resources))
 	}
 
 	names := map[string]bool{}
 	for _, r := range res.Resources {
 		names[r.Name] = true
 	}
-	for _, expected := range []string{"platform-info", "application-spec", "org-coding-standards"} {
+	for _, expected := range []string{"platform-info", "application-spec", "org-coding-standards", "org-logging-standards", "org-metrics-standards", "org-tracing-standards"} {
 		if !names[expected] {
 			t.Errorf("expected resource %q in listing", expected)
 		}
@@ -502,5 +505,113 @@ func TestGitHubStandards_ListedInResources(t *testing.T) {
 	}
 	if !names["github-standards"] {
 		t.Error("expected 'github-standards' resource to be listed when GitHub is configured")
+	}
+}
+
+func TestLoggingStandards(t *testing.T) {
+	cs := setupServer(t)
+	ctx := context.Background()
+
+	res, err := cs.ReadResource(ctx, &gomcp.ReadResourceParams{
+		URI: "iaf://org/logging-standards",
+	})
+	if err != nil {
+		t.Fatal(err)
+	}
+
+	if len(res.Contents) != 1 {
+		t.Fatalf("expected 1 content, got %d", len(res.Contents))
+	}
+	if res.Contents[0].MIMEType != "application/json" {
+		t.Errorf("expected application/json, got %q", res.Contents[0].MIMEType)
+	}
+
+	var standards map[string]any
+	if err := json.Unmarshal([]byte(res.Contents[0].Text), &standards); err != nil {
+		t.Fatalf("failed to parse logging standards JSON: %v", err)
+	}
+
+	for _, key := range []string{"requiredFields", "recommendedFields", "correlationFields", "prohibited", "output"} {
+		if _, ok := standards[key]; !ok {
+			t.Errorf("expected key %q in logging standards", key)
+		}
+	}
+
+	output, ok := standards["output"].(map[string]any)
+	if !ok {
+		t.Fatal("expected output to be an object")
+	}
+	if output["target"] != "stdout" {
+		t.Errorf("expected output.target 'stdout', got %v", output["target"])
+	}
+}
+
+func TestMetricsStandards(t *testing.T) {
+	cs := setupServer(t)
+	ctx := context.Background()
+
+	res, err := cs.ReadResource(ctx, &gomcp.ReadResourceParams{
+		URI: "iaf://org/metrics-standards",
+	})
+	if err != nil {
+		t.Fatal(err)
+	}
+
+	if len(res.Contents) != 1 {
+		t.Fatalf("expected 1 content, got %d", len(res.Contents))
+	}
+
+	var standards map[string]any
+	if err := json.Unmarshal([]byte(res.Contents[0].Text), &standards); err != nil {
+		t.Fatalf("failed to parse metrics standards JSON: %v", err)
+	}
+
+	for _, key := range []string{"requiredMetrics", "endpoint", "standardLabels", "method"} {
+		if _, ok := standards[key]; !ok {
+			t.Errorf("expected key %q in metrics standards", key)
+		}
+	}
+
+	endpoint, ok := standards["endpoint"].(map[string]any)
+	if !ok {
+		t.Fatal("expected endpoint to be an object")
+	}
+	if endpoint["path"] != "/metrics" {
+		t.Errorf("expected endpoint.path '/metrics', got %v", endpoint["path"])
+	}
+
+	if standards["method"] != "RED" {
+		t.Errorf("expected method 'RED', got %v", standards["method"])
+	}
+}
+
+func TestTracingStandards(t *testing.T) {
+	cs := setupServer(t)
+	ctx := context.Background()
+
+	res, err := cs.ReadResource(ctx, &gomcp.ReadResourceParams{
+		URI: "iaf://org/tracing-standards",
+	})
+	if err != nil {
+		t.Fatal(err)
+	}
+
+	if len(res.Contents) != 1 {
+		t.Fatalf("expected 1 content, got %d", len(res.Contents))
+	}
+
+	var standards map[string]any
+	if err := json.Unmarshal([]byte(res.Contents[0].Text), &standards); err != nil {
+		t.Fatalf("failed to parse tracing standards JSON: %v", err)
+	}
+
+	for _, key := range []string{"sdk", "endpointSource", "requiredSpanAttributes", "traceLogCorrelation", "autoInstrumentation", "securityNote"} {
+		if _, ok := standards[key]; !ok {
+			t.Errorf("expected key %q in tracing standards", key)
+		}
+	}
+
+	if standards["sdk"] != "OpenTelemetry" {
+		t.Errorf("expected sdk 'OpenTelemetry', got %v", standards["sdk"])
 	}
 }

@@ -7,6 +7,26 @@ rules:
 - apiGroups:
   - ""
   resources:
+  - namespaces
+  verbs:
+  - create
+  - get
+- apiGroups:
+  - ""
+  resources:
+  - pods
+  verbs:
+  - get
+  - list
+- apiGroups:
+  - ""
+  resources:
+  - pods/log
+  verbs:
+  - get
+- apiGroups:
+  - ""
+  resources:
   - secrets
   verbs:
   - create
@@ -62,6 +82,7 @@ rules:
   - iaf.io
   resources:
   - applications
+  - managedservices
   verbs:
   - create
   - delete
@@ -74,12 +95,14 @@ rules:
   - iaf.io
   resources:
   - applications/finalizers
+  - managedservices/finalizers
   verbs:
   - update
 - apiGroups:
   - iaf.io
   resources:
   - applications/status
+  - managedservices/status
   verbs:
   - get
   - patch
@@ -96,6 +119,30 @@ rules:
   - kpack.io
   resources:
   - images
+  verbs:
+  - create
+  - delete
+  - get
+  - list
+  - patch
+  - update
+  - watch
+- apiGroups:
+  - networking.k8s.io
+  resources:
+  - networkpolicies
+  verbs:
+  - create
+  - delete
+  - get
+  - list
+  - patch
+  - update
+  - watch
+- apiGroups:
+  - postgresql.cnpg.io
+  resources:
+  - clusters
   verbs:
   - create
   - delete
