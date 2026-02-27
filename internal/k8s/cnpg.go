@@ -108,7 +108,10 @@ func GetCNPGClusterStatus(obj *unstructured.Unstructured) (phase string, secretN
 }
 
 // BuildNetworkPolicy constructs a NetworkPolicy that allows ingress to CNPG cluster pods
-// only from other pods within the same namespace.
+// from pods in the same namespace and from the CNPG operator namespace (cnpg-system).
+// The CNPG operator must be able to reach database pods on its internal status port
+// (default 8000) to extract health information; blocking it causes the cluster to stay
+// in a "not ready" state even when the PostgreSQL process is healthy.
 func BuildNetworkPolicy(svc *iafv1alpha1.ManagedService) *networkingv1.NetworkPolicy {
 	protocolTCP := corev1.Protocol("TCP")
 	return &networkingv1.NetworkPolicy{
@@ -140,8 +143,17 @@ func BuildNetworkPolicy(svc *iafv1alpha1.ManagedService) *networkingv1.NetworkPo
 				{
 					From: []networkingv1.NetworkPolicyPeer{
 						{
-							// Allow all pods in the same namespace.
+							// Allow all pods in the same namespace (app connectivity).
 							PodSelector: &metav1.LabelSelector{},
+						},
+						{
+							// Allow the CNPG operator to reach database pods for
+							// health/status checks on its internal communication port.
+							NamespaceSelector: &metav1.LabelSelector{
+								MatchLabels: map[string]string{
+									"kubernetes.io/metadata.name": "cnpg-system",
+								},
+							},
 						},
 					},
 					Ports: []networkingv1.NetworkPolicyPort{

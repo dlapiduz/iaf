@@ -152,11 +152,17 @@ func TestBuildNetworkPolicy(t *testing.T) {
 	if len(np.Spec.Ingress) != 1 {
 		t.Fatalf("expected 1 ingress rule, got %d", len(np.Spec.Ingress))
 	}
-	if len(np.Spec.Ingress[0].From) != 1 {
-		t.Fatalf("expected 1 from peer, got %d", len(np.Spec.Ingress[0].From))
+	if len(np.Spec.Ingress[0].From) != 2 {
+		t.Fatalf("expected 2 from peers (same-namespace pods + cnpg-system), got %d", len(np.Spec.Ingress[0].From))
 	}
 	if np.Spec.Ingress[0].From[0].PodSelector == nil {
-		t.Error("expected pod selector in ingress rule")
+		t.Error("expected pod selector in first ingress peer")
+	}
+	if np.Spec.Ingress[0].From[1].NamespaceSelector == nil {
+		t.Error("expected namespace selector in second ingress peer (cnpg-system)")
+	}
+	if np.Spec.Ingress[0].From[1].NamespaceSelector.MatchLabels["kubernetes.io/metadata.name"] != "cnpg-system" {
+		t.Errorf("expected cnpg-system namespace selector, got %v", np.Spec.Ingress[0].From[1].NamespaceSelector.MatchLabels)
 	}
 
 	ownerRefs := np.GetOwnerReferences()
