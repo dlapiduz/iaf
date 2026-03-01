@@ -1,0 +1,34 @@
+{
+  "cli_version": "0.4.8",
+  "checkpoint_id": "64dc6e828d78",
+  "session_id": "31e52749-b941-4cea-9bd7-de01d182f88b",
+  "strategy": "manual-commit",
+  "created_at": "2026-03-01T19:47:02.237696Z",
+  "branch": "refactor/bound-managed-services",
+  "checkpoints_count": 2,
+  "files_touched": [
+    "api/v1alpha1/application_types.go",
+    "api/v1alpha1/zz_generated.deepcopy.go",
+    "internal/controller/application_controller.go",
+    "internal/mcp/tools/services.go",
+    "internal/mcp/tools/services_test.go"
+  ],
+  "agent": "Claude Code",
+  "turn_id": "d210a56b43fc",
+  "token_usage": {
+    "input_tokens": 366,
+    "cache_creation_tokens": 1375652,
+    "cache_read_tokens": 33878106,
+    "output_tokens": 161120,
+    "api_call_count": 328
+  },
+  "initial_attribution": {
+    "calculated_at": "2026-03-01T19:47:00.332625Z",
+    "agent_lines": 110,
+    "human_added": 0,
+    "human_modified": 0,
+    "human_removed": 0,
+    "total_committed": 110,
+    "agent_percentage": 100
+  }
+}
