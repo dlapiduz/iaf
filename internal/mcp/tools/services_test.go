@@ -349,18 +349,22 @@ func TestBindService_OK(t *testing.T) {
 		t.Errorf("expected bound=true, got %v", result["bound"])
 	}
 
-	// Verify Application has 6 SecretKeyRef env vars.
+	// Verify Application has one BoundManagedService entry and no direct env vars added.
 	var updatedApp iafv1alpha1.Application
 	k8sClient.Get(ctx, types.NamespacedName{Name: "myapp", Namespace: ns}, &updatedApp)
-	if len(updatedApp.Spec.Env) != 6 {
-		t.Errorf("expected 6 env vars, got %d", len(updatedApp.Spec.Env))
-	}
-	for _, e := range updatedApp.Spec.Env {
-		if e.SecretKeyRef == nil {
-			t.Errorf("expected SecretKeyRef on env var %s", e.Name)
-		} else if e.SecretKeyRef.Name != "pgdb-app" {
-			t.Errorf("expected secret name pgdb-app, got %s", e.SecretKeyRef.Name)
+	if len(updatedApp.Spec.BoundManagedServices) != 1 {
+		t.Errorf("expected 1 BoundManagedService, got %d", len(updatedApp.Spec.BoundManagedServices))
+	} else {
+		bms := updatedApp.Spec.BoundManagedServices[0]
+		if bms.ServiceName != "pgdb" {
+			t.Errorf("expected ServiceName pgdb, got %s", bms.ServiceName)
 		}
+		if bms.SecretName != "pgdb-app" {
+			t.Errorf("expected SecretName pgdb-app, got %s", bms.SecretName)
+		}
+	}
+	if len(updatedApp.Spec.Env) != 0 {
+		t.Errorf("expected no direct env vars (controller handles injection), got %d", len(updatedApp.Spec.Env))
 	}
 
 	// Verify ManagedService.Status.BoundApps.
@@ -371,8 +375,8 @@ func TestBindService_OK(t *testing.T) {
 	}
 }
 
-// TestBindService_EnvConflict verifies rejection when app already has one of the 6 env vars.
-func TestBindService_EnvConflict(t *testing.T) {
+// TestBindService_AlreadyBound verifies rejection when the service is already bound to the app.
+func TestBindService_AlreadyBound(t *testing.T) {
 	ctx := context.Background()
 
 	scheme := runtime.NewScheme()
@@ -418,12 +422,14 @@ func TestBindService_EnvConflict(t *testing.T) {
 	k8sClient.Create(ctx, svc)
 	k8sClient.Status().Update(ctx, svc)
 
-	// App already has DATABASE_URL.
+	// App already has pgdb bound.
 	app := &iafv1alpha1.Application{
 		ObjectMeta: metav1.ObjectMeta{Name: "myapp", Namespace: ns},
 		Spec: iafv1alpha1.ApplicationSpec{
 			Image: "nginx:latest", Port: 8080, Replicas: 1,
-			Env: []iafv1alpha1.EnvVar{{Name: "DATABASE_URL", Value: "postgres://existing"}},
+			BoundManagedServices: []iafv1alpha1.BoundManagedService{
+				{ServiceName: "pgdb", SecretName: "pgdb-app"},
+			},
 		},
 	}
 	k8sClient.Create(ctx, app)
@@ -435,7 +441,7 @@ func TestBindService_EnvConflict(t *testing.T) {
 		},
 	})
 	if err == nil && !res.IsError {
-		t.Fatal("expected error when app already has DATABASE_URL")
+		t.Fatal("expected error when service is already bound to app")
 	}
 }
 
@@ -551,20 +557,17 @@ func TestUnbindService_OK(t *testing.T) {
 	k8sClient.Create(ctx, svc)
 	k8sClient.Status().Update(ctx, svc)
 
-	// App has 6 env vars from bind.
-	envVars := []iafv1alpha1.EnvVar{
-		{Name: "DATABASE_URL", SecretKeyRef: &iafv1alpha1.SecretKeyRef{Name: "pgdb-app", Key: "uri"}},
-		{Name: "PGHOST", SecretKeyRef: &iafv1alpha1.SecretKeyRef{Name: "pgdb-app", Key: "host"}},
-		{Name: "PGPORT", SecretKeyRef: &iafv1alpha1.SecretKeyRef{Name: "pgdb-app", Key: "port"}},
-		{Name: "PGDATABASE", SecretKeyRef: &iafv1alpha1.SecretKeyRef{Name: "pgdb-app", Key: "dbname"}},
-		{Name: "PGUSER", SecretKeyRef: &iafv1alpha1.SecretKeyRef{Name: "pgdb-app", Key: "username"}},
-		{Name: "PGPASSWORD", SecretKeyRef: &iafv1alpha1.SecretKeyRef{Name: "pgdb-app", Key: "password"}},
-		{Name: "MY_VAR", Value: "keep-me"},
-	}
+	// App has pgdb in BoundManagedServices and a literal env var to preserve.
 	app := &iafv1alpha1.Application{
 		ObjectMeta: metav1.ObjectMeta{Name: "myapp", Namespace: ns},
 		Spec: iafv1alpha1.ApplicationSpec{
-			Image: "nginx:latest", Port: 8080, Replicas: 1, Env: envVars,
+			Image:    "nginx:latest",
+			Port:     8080,
+			Replicas: 1,
+			BoundManagedServices: []iafv1alpha1.BoundManagedService{
+				{ServiceName: "pgdb", SecretName: "pgdb-app"},
+			},
+			Env: []iafv1alpha1.EnvVar{{Name: "MY_VAR", Value: "keep-me"}},
 		},
 	}
 	k8sClient.Create(ctx, app)
@@ -581,6 +584,9 @@ func TestUnbindService_OK(t *testing.T) {
 
 	var updatedApp iafv1alpha1.Application
 	k8sClient.Get(ctx, types.NamespacedName{Name: "myapp", Namespace: ns}, &updatedApp)
+	if len(updatedApp.Spec.BoundManagedServices) != 0 {
+		t.Errorf("expected empty BoundManagedServices, got %v", updatedApp.Spec.BoundManagedServices)
+	}
 	if len(updatedApp.Spec.Env) != 1 {
 		t.Errorf("expected 1 env var remaining (MY_VAR), got %d: %v", len(updatedApp.Spec.Env), updatedApp.Spec.Env)
 	}

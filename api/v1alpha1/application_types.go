@@ -67,6 +67,12 @@ type ApplicationSpec struct {
 	// Use the attach_data_source MCP tool to add entries here.
 	// +optional
 	AttachedDataSources []AttachedDataSource `json:"attachedDataSources,omitempty"`
+
+	// BoundManagedServices lists managed services bound to this application.
+	// The controller injects connection credentials from each service as env vars into the Deployment.
+	// Use the bind_service MCP tool to add entries here.
+	// +optional
+	BoundManagedServices []BoundManagedService `json:"boundManagedServices,omitempty"`
 }
 
 // AttachedDataSource records a DataSource attached to an Application.
@@ -94,20 +100,18 @@ type GitSource struct {
 type EnvVar struct {
 	// Name of the environment variable.
 	Name string `json:"name"`
-	// Value of the environment variable. Mutually exclusive with SecretKeyRef.
+	// Value of the environment variable.
 	// +optional
 	Value string `json:"value,omitempty"`
-	// SecretKeyRef references a key in a Kubernetes Secret. Mutually exclusive with Value.
-	// +optional
-	SecretKeyRef *SecretKeyRef `json:"secretKeyRef,omitempty"`
 }
 
-// SecretKeyRef selects a key from a Secret.
-type SecretKeyRef struct {
-	// Name is the name of the Kubernetes Secret.
-	Name string `json:"name"`
-	// Key is the key within the Secret.
-	Key string `json:"key"`
+// BoundManagedService records a managed service bound to an Application.
+// The controller injects PG* connection env vars from the referenced Secret into the Deployment.
+type BoundManagedService struct {
+	// ServiceName is the name of the ManagedService CR.
+	ServiceName string `json:"serviceName"`
+	// SecretName is the name of the CNPG connection Secret in the same namespace.
+	SecretName string `json:"secretName"`
 }
 
 // ApplicationPhase represents the current lifecycle phase of an Application.

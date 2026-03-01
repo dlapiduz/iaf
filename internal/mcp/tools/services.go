@@ -24,16 +24,6 @@ var serviceEnvVarNames = []string{
 	"PGPASSWORD",
 }
 
-// serviceEnvVarKeys maps each env var name to the Secret key that holds its value.
-var serviceEnvVarKeys = map[string]string{
-	"DATABASE_URL": "uri",
-	"PGHOST":       "host",
-	"PGPORT":       "port",
-	"PGDATABASE":   "dbname",
-	"PGUSER":       "username",
-	"PGPASSWORD":   "password",
-}
-
 // validServiceTypes is the set of supported managed service types.
 var validServiceTypes = map[string]bool{
 	"postgres": true,
@@ -206,29 +196,20 @@ func RegisterBindService(server *gomcp.Server, deps *Dependencies) {
 			return nil, nil, fmt.Errorf("getting application: %w", err)
 		}
 
-		// Check for env var name collisions.
-		existingNames := make(map[string]bool, len(app.Spec.Env))
-		for _, e := range app.Spec.Env {
-			existingNames[e.Name] = true
-		}
-		for _, name := range serviceEnvVarNames {
-			if existingNames[name] {
-				return nil, nil, fmt.Errorf("application %q already has environment variable %q — unbind or remove it first", input.AppName, name)
+		// Check for duplicate binding.
+		for _, bms := range app.Spec.BoundManagedServices {
+			if bms.ServiceName == input.ServiceName {
+				return nil, nil, fmt.Errorf("service %q is already bound to application %q", input.ServiceName, input.AppName)
 			}
 		}
 
-		// Inject the 6 env var SecretKeyRef entries.
-		for _, envName := range serviceEnvVarNames {
-			app.Spec.Env = append(app.Spec.Env, iafv1alpha1.EnvVar{
-				Name: envName,
-				SecretKeyRef: &iafv1alpha1.SecretKeyRef{
-					Name: secretName,
-					Key:  serviceEnvVarKeys[envName],
-				},
-			})
-		}
+		// Record the binding; the controller injects PG* env vars from the Secret.
+		app.Spec.BoundManagedServices = append(app.Spec.BoundManagedServices, iafv1alpha1.BoundManagedService{
+			ServiceName: input.ServiceName,
+			SecretName:  secretName,
+		})
 		if err := deps.Client.Update(ctx, &app); err != nil {
-			return nil, nil, fmt.Errorf("updating application env vars: %w", err)
+			return nil, nil, fmt.Errorf("updating application bindings: %w", err)
 		}
 
 		// Update ManagedService.Status.BoundApps with optimistic retry on conflict.
@@ -280,7 +261,6 @@ func RegisterUnbindService(server *gomcp.Server, deps *Dependencies) {
 			}
 			return nil, nil, fmt.Errorf("getting service: %w", err)
 		}
-		secretName := input.ServiceName + "-app"
 
 		var app iafv1alpha1.Application
 		if err := deps.Client.Get(ctx, types.NamespacedName{Name: input.AppName, Namespace: namespace}, &app); err != nil {
@@ -290,17 +270,16 @@ func RegisterUnbindService(server *gomcp.Server, deps *Dependencies) {
 			return nil, nil, fmt.Errorf("getting application: %w", err)
 		}
 
-		// Remove env vars that reference this service's secret.
-		filtered := make([]iafv1alpha1.EnvVar, 0, len(app.Spec.Env))
-		for _, e := range app.Spec.Env {
-			if e.SecretKeyRef != nil && e.SecretKeyRef.Name == secretName {
-				continue
+		// Remove this service from BoundManagedServices.
+		filtered := make([]iafv1alpha1.BoundManagedService, 0, len(app.Spec.BoundManagedServices))
+		for _, bms := range app.Spec.BoundManagedServices {
+			if bms.ServiceName != input.ServiceName {
+				filtered = append(filtered, bms)
 			}
-			filtered = append(filtered, e)
 		}
-		app.Spec.Env = filtered
+		app.Spec.BoundManagedServices = filtered
 		if err := deps.Client.Update(ctx, &app); err != nil {
-			return nil, nil, fmt.Errorf("updating application env vars: %w", err)
+			return nil, nil, fmt.Errorf("updating application bindings: %w", err)
 		}
 
 		// Remove app from BoundApps with optimistic retry.
