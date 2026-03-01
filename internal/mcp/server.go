@@ -40,6 +40,12 @@ AVAILABLE TOOLS (all require session_id except register):
 - list_data_sources: List all platform data sources (databases, APIs, etc.)
 - get_data_source: Get details about a specific data source including env var names
 - attach_data_source: Attach a data source to your app (injects credentials as env vars)
+- provision_service: Provision a managed backing service (e.g. PostgreSQL) — poll service_status every 10s until Ready
+- service_status: Check provisioning status; returns connectionEnvVars when Ready
+- bind_service: Inject service credentials into an app as K8s Secret references
+- unbind_service: Remove service credentials from an app
+- deprovision_service: Delete a managed service (must unbind all apps first)
+- list_services: List all managed services in your namespace
 
 KEY DETAILS:
 - Apps are built automatically using Cloud Native Buildpacks (Go, Node.js, Python, Java, Ruby)
@@ -57,7 +63,7 @@ CODING STANDARDS:
 // If loader is non-nil, org standards are served from that loader; otherwise platform defaults are used.
 // ghClient may be nil — GitHub tools are omitted when it is not set.
 // If clientset is non-nil, app_logs will stream real logs from pods.
-func NewServer(k8sClient client.Client, sessions *auth.SessionStore, store *sourcestore.Store, baseDomain string, loader *orgstandards.Loader, ghClient iafgithub.Client, ghOrg, ghToken string, clientset ...kubernetes.Interface) *gomcp.Server {
+func NewServer(k8sClient client.Client, sessions *auth.SessionStore, store *sourcestore.Store, baseDomain string, loader *orgstandards.Loader, ghClient iafgithub.Client, ghOrg, ghToken string, tempoURL string, clientset ...kubernetes.Interface) *gomcp.Server {
 	server := gomcp.NewServer(
 		&gomcp.Implementation{
 			Name:    "iaf",
@@ -77,6 +83,7 @@ func NewServer(k8sClient client.Client, sessions *auth.SessionStore, store *sour
 		GitHub:       ghClient,
 		GitHubOrg:    ghOrg,
 		GitHubToken:  ghToken,
+		TempoURL:     tempoURL,
 	}
 
 	tools.RegisterRegisterTool(server, deps)
@@ -96,11 +103,21 @@ func NewServer(k8sClient client.Client, sessions *auth.SessionStore, store *sour
 	tools.RegisterListDataSources(server, deps)
 	tools.RegisterGetDataSource(server, deps)
 	tools.RegisterAttachDataSource(server, deps)
+	tools.RegisterProvisionService(server, deps)
+	tools.RegisterServiceStatus(server, deps)
+	tools.RegisterBindService(server, deps)
+	tools.RegisterUnbindService(server, deps)
+	tools.RegisterDeprovisionService(server, deps)
+	tools.RegisterListServices(server, deps)
 
 	prompts.RegisterDeployGuide(server, deps)
 	prompts.RegisterLanguageGuide(server, deps)
 	prompts.RegisterCodingGuide(server, deps)
 	prompts.RegisterScaffoldGuide(server, deps)
+	prompts.RegisterServicesGuide(server, deps)
+	prompts.RegisterLoggingGuide(server, deps)
+	prompts.RegisterMetricsGuide(server, deps)
+	prompts.RegisterTracingGuide(server, deps)
 
 	resources.RegisterPlatformInfo(server, deps)
 	resources.RegisterLanguageResources(server, deps)
@@ -108,6 +125,9 @@ func NewServer(k8sClient client.Client, sessions *auth.SessionStore, store *sour
 	resources.RegisterOrgStandards(server, deps)
 	resources.RegisterScaffoldResource(server, deps)
 	resources.RegisterDataCatalog(server, deps)
+	resources.RegisterLoggingStandards(server, deps)
+	resources.RegisterMetricsStandards(server, deps)
+	resources.RegisterTracingStandards(server, deps)
 
 	// GitHub components — registered only when a token and org are configured.
 	if deps.GitHub != nil {

@@ -1,0 +1,16 @@
+---
+# helmfile-services.yaml — CloudNativePG installation for IAF managed services.
+# Usage: helmfile -f config/helmfile-services.yaml apply
+
+repositories:
+  - name: cloudnative-pg
+    url: https://cloudnative-pg.github.io/charts
+
+releases:
+  - name: cloudnative-pg
+    namespace: cnpg-system
+    createNamespace: true
+    chart: cloudnative-pg/cloudnative-pg
+    version: "~0.23.0"
+    values:
+      - config/helm-values/cloudnative-pg.yaml
