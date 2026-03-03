@@ -4,6 +4,7 @@ import (
 	"context"
 	"encoding/json"
 	"fmt"
+	"net/url"
 
 	iafv1alpha1 "github.com/dlapiduz/iaf/api/v1alpha1"
 	"github.com/dlapiduz/iaf/internal/validation"
@@ -74,9 +75,33 @@ func RegisterAppStatus(server *gomcp.Server, deps *Dependencies) {
 			result["conditions"] = conditions
 		}
 
+		// Add Grafana Explore deep link when Tempo is configured.
+		if deps.TempoURL != "" {
+			result["traceExploreUrl"] = buildTraceExploreURL(deps.TempoURL, app.Name)
+		}
+
 		text, _ := json.MarshalIndent(result, "", "  ")
 		return &gomcp.CallToolResult{
 			Content: []gomcp.Content{&gomcp.TextContent{Text: string(text)}},
 		}, nil, nil
 	})
+}
+
+// buildTraceExploreURL constructs a Grafana Explore deep link pre-filtered to
+// the given application's service.name using TraceQL. The grafanaURL comes from
+// platform config (IAF_TEMPO_URL), never from agent input.
+func buildTraceExploreURL(grafanaURL, appName string) string {
+	// TraceQL query scoped to this app's service.name.
+	query := fmt.Sprintf(`{service.name="%s"}`, appName)
+	left := fmt.Sprintf(`{"datasource":"Tempo","queries":[{"query":%s,"queryType":"traceql"}],"range":{"from":"now-1h","to":"now"}}`,
+		string(mustMarshalJSON(query)))
+	params := url.Values{}
+	params.Set("orgId", "1")
+	params.Set("left", left)
+	return grafanaURL + "/explore?" + params.Encode()
+}
+
+func mustMarshalJSON(v any) []byte {
+	b, _ := json.Marshal(v)
+	return b
 }

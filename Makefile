@@ -104,3 +104,13 @@ clean:
 .PHONY: test
 test:
 	go test ./... -v
+
+.PHONY: test-integration
+test-integration:
+	go test ./test/integration/... -v -tags=integration
+
+##@ Managed Services
+
+.PHONY: update-services
+update-services:
+	helmfile -f config/helmfile-services.yaml apply

@@ -94,6 +94,31 @@ When your code lives in a GitHub repository:
 - Read ` + "`iaf://org/github-standards`" + ` for the machine-readable GitHub standards document.
 - Use ` + "`deploy_app`" + ` with ` + "`git_url`" + ` set to the clone URL returned by ` + "`setup_github_repo`" + `.
 
+## Persistent Data
+
+**Do NOT deploy databases as Applications** (e.g. do not use a postgres Docker image as an Application spec). Use ` + "`provision_service`" + ` instead — it provisions a properly managed, isolated PostgreSQL database via CloudNativePG.
+
+Workflow: ` + "`provision_service`" + ` → poll ` + "`service_status`" + ` every 10s until Ready → ` + "`bind_service`" + ` → use ` + "`DATABASE_URL`" + ` env var in your application.
+
+See the ` + "`services-guide`" + ` prompt for full details.
+
+## Observability
+
+### Logging
+Log to stdout in JSON Lines format. Logs are collected automatically — no configuration needed.
+- Full guide: ` + "`logging-guide`" + ` prompt (accepts optional ` + "`language`" + ` argument)
+- Standard: ` + "`iaf://org/logging-standards`" + `
+
+### Metrics
+Expose a ` + "`/metrics`" + ` endpoint in Prometheus text format. Use the RED method: ` + "`http_requests_total`" + ` and ` + "`http_request_duration_seconds`" + `.
+- Full guide: ` + "`metrics-guide`" + ` prompt (accepts optional ` + "`language`" + ` argument)
+- Standard: ` + "`iaf://org/metrics-standards`" + `
+
+### Tracing
+The platform injects ` + "`OTEL_EXPORTER_OTLP_ENDPOINT`" + ` and ` + "`OTEL_SERVICE_NAME`" + ` automatically. Use the OTel SDK — do not hardcode the endpoint.
+- Full guide: ` + "`tracing-guide`" + ` prompt (accepts optional ` + "`language`" + ` argument)
+- Standard: ` + "`iaf://org/tracing-standards`" + `
+
 ## Recommended Workflow
 1. Call ` + "`register`" + ` to get a session_id.
 2. Read the ` + "`coding-guide`" + ` prompt to understand org coding standards.

@@ -41,6 +41,10 @@ func setupServer(t *testing.T) *gomcp.ClientSession {
 	prompts.RegisterLanguageGuide(server, deps)
 	prompts.RegisterCodingGuide(server, deps)
 	prompts.RegisterScaffoldGuide(server, deps)
+	prompts.RegisterServicesGuide(server, deps)
+	prompts.RegisterLoggingGuide(server, deps)
+	prompts.RegisterMetricsGuide(server, deps)
+	prompts.RegisterTracingGuide(server, deps)
 
 	return connectServer(t, ctx, server)
 }
@@ -222,15 +226,15 @@ func TestListPrompts(t *testing.T) {
 		t.Fatal(err)
 	}
 
-	if len(res.Prompts) != 4 {
-		t.Fatalf("expected 4 prompts, got %d", len(res.Prompts))
+	if len(res.Prompts) != 8 {
+		t.Fatalf("expected 8 prompts, got %d", len(res.Prompts))
 	}
 
 	names := map[string]bool{}
 	for _, p := range res.Prompts {
 		names[p.Name] = true
 	}
-	for _, expected := range []string{"deploy-guide", "language-guide", "coding-guide", "scaffold-guide"} {
+	for _, expected := range []string{"deploy-guide", "language-guide", "coding-guide", "scaffold-guide", "services-guide", "logging-guide", "metrics-guide", "tracing-guide"} {
 		if !names[expected] {
 			t.Errorf("expected prompt %q in listing", expected)
 		}
@@ -484,5 +488,180 @@ func TestGitHubGuide_ListedWhenConfigured(t *testing.T) {
 	}
 	if !names["github-guide"] {
 		t.Error("expected 'github-guide' to be listed when GitHub is configured")
+	}
+}
+
+func TestLoggingGuide_Overview(t *testing.T) {
+	cs := setupServer(t)
+	ctx := context.Background()
+
+	res, err := cs.GetPrompt(ctx, &gomcp.GetPromptParams{Name: "logging-guide"})
+	if err != nil {
+		t.Fatal(err)
+	}
+
+	text := res.Messages[0].Content.(*gomcp.TextContent).Text
+	for _, s := range []string{"JSON Lines", "stdout", "Required Fields", "iaf://org/logging-standards"} {
+		if !strings.Contains(text, s) {
+			t.Errorf("expected %q in logging-guide overview", s)
+		}
+	}
+}
+
+func TestLoggingGuide_PerLanguage(t *testing.T) {
+	cs := setupServer(t)
+	ctx := context.Background()
+
+	libs := map[string]string{
+		"go":     "slog",
+		"nodejs": "pino",
+		"python": "python-json-logger",
+		"java":   "logback",
+		"ruby":   "semantic_logger",
+	}
+	for lang, expectedLib := range libs {
+		t.Run(lang, func(t *testing.T) {
+			res, err := cs.GetPrompt(ctx, &gomcp.GetPromptParams{
+				Name:      "logging-guide",
+				Arguments: map[string]string{"language": lang},
+			})
+			if err != nil {
+				t.Fatal(err)
+			}
+			text := res.Messages[0].Content.(*gomcp.TextContent).Text
+			if !strings.Contains(text, expectedLib) {
+				t.Errorf("expected library %q in %s logging guide", expectedLib, lang)
+			}
+			if !strings.Contains(text, "iaf://org/logging-standards") {
+				t.Errorf("expected standards reference in %s logging guide", lang)
+			}
+		})
+	}
+}
+
+func TestLoggingGuide_UnsupportedLanguage(t *testing.T) {
+	cs := setupServer(t)
+	ctx := context.Background()
+
+	_, err := cs.GetPrompt(ctx, &gomcp.GetPromptParams{
+		Name:      "logging-guide",
+		Arguments: map[string]string{"language": "cobol"},
+	})
+	if err == nil {
+		t.Fatal("expected error for unsupported language")
+	}
+}
+
+func TestMetricsGuide_Overview(t *testing.T) {
+	cs := setupServer(t)
+	ctx := context.Background()
+
+	res, err := cs.GetPrompt(ctx, &gomcp.GetPromptParams{Name: "metrics-guide"})
+	if err != nil {
+		t.Fatal(err)
+	}
+
+	text := res.Messages[0].Content.(*gomcp.TextContent).Text
+	for _, s := range []string{"/metrics", "http_requests_total", "RED", "iaf://org/metrics-standards"} {
+		if !strings.Contains(text, s) {
+			t.Errorf("expected %q in metrics-guide overview", s)
+		}
+	}
+}
+
+func TestMetricsGuide_PerLanguage(t *testing.T) {
+	cs := setupServer(t)
+	ctx := context.Background()
+
+	libs := map[string]string{
+		"go":     "prometheus/client_golang",
+		"nodejs": "prom-client",
+		"python": "prometheus_client",
+		"java":   "micrometer",
+		"ruby":   "prometheus-client",
+	}
+	for lang, expectedLib := range libs {
+		t.Run(lang, func(t *testing.T) {
+			res, err := cs.GetPrompt(ctx, &gomcp.GetPromptParams{
+				Name:      "metrics-guide",
+				Arguments: map[string]string{"language": lang},
+			})
+			if err != nil {
+				t.Fatal(err)
+			}
+			text := res.Messages[0].Content.(*gomcp.TextContent).Text
+			if !strings.Contains(text, expectedLib) {
+				t.Errorf("expected library %q in %s metrics guide", expectedLib, lang)
+			}
+		})
+	}
+}
+
+func TestTracingGuide_Overview(t *testing.T) {
+	cs := setupServer(t)
+	ctx := context.Background()
+
+	res, err := cs.GetPrompt(ctx, &gomcp.GetPromptParams{Name: "tracing-guide"})
+	if err != nil {
+		t.Fatal(err)
+	}
+
+	text := res.Messages[0].Content.(*gomcp.TextContent).Text
+	for _, s := range []string{"OTEL_EXPORTER_OTLP_ENDPOINT", "Auto-Instrumentation", "trace_id", "iaf://org/tracing-standards"} {
+		if !strings.Contains(text, s) {
+			t.Errorf("expected %q in tracing-guide overview", s)
+		}
+	}
+}
+
+func TestTracingGuide_PerLanguage(t *testing.T) {
+	cs := setupServer(t)
+	ctx := context.Background()
+
+	tests := []struct {
+		lang          string
+		expectedLib   string
+		autoAvailable bool
+	}{
+		{"go", "go.opentelemetry.io/otel", false},
+		{"nodejs", "@opentelemetry", true},
+		{"python", "opentelemetry-sdk", true},
+		{"java", "opentelemetry-sdk", true},
+		{"ruby", "opentelemetry-sdk", true},
+	}
+	for _, tc := range tests {
+		t.Run(tc.lang, func(t *testing.T) {
+			res, err := cs.GetPrompt(ctx, &gomcp.GetPromptParams{
+				Name:      "tracing-guide",
+				Arguments: map[string]string{"language": tc.lang},
+			})
+			if err != nil {
+				t.Fatal(err)
+			}
+			text := res.Messages[0].Content.(*gomcp.TextContent).Text
+			if !strings.Contains(text, tc.expectedLib) {
+				t.Errorf("expected library %q in %s tracing guide", tc.expectedLib, tc.lang)
+			}
+			if tc.autoAvailable && !strings.Contains(text, "Auto-Instrumentation") {
+				t.Errorf("expected auto-instrumentation section for %s", tc.lang)
+			}
+		})
+	}
+}
+
+func TestDeployGuide_MentionsObservability(t *testing.T) {
+	cs := setupServer(t)
+	ctx := context.Background()
+
+	res, err := cs.GetPrompt(ctx, &gomcp.GetPromptParams{Name: "deploy-guide"})
+	if err != nil {
+		t.Fatal(err)
+	}
+
+	text := res.Messages[0].Content.(*gomcp.TextContent).Text
+	for _, ref := range []string{"logging-guide", "metrics-guide", "tracing-guide", "Observability"} {
+		if !strings.Contains(text, ref) {
+			t.Errorf("deploy-guide should reference %q", ref)
+		}
 	}
 }

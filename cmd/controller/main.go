@@ -58,6 +58,15 @@ func main() {
 		os.Exit(1)
 	}
 
+	msReconciler := &controller.ManagedServiceReconciler{
+		Client: mgr.GetClient(),
+		Scheme: mgr.GetScheme(),
+	}
+	if err := msReconciler.SetupWithManager(mgr); err != nil {
+		logger.Error("failed to setup managed service controller", "error", err)
+		os.Exit(1)
+	}
+
 	logger.Info("starting controller manager")
 	if err := mgr.Start(ctrl.SetupSignalHandler()); err != nil {
 		logger.Error("controller manager exited with error", "error", err)

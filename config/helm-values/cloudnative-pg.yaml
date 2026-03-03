@@ -1,0 +1,17 @@
+---
+# Helm values for cloudnative-pg chart (dev/local environment).
+# Reduce resource limits for local Kubernetes (Rancher Desktop).
+
+resources:
+  requests:
+    cpu: 100m
+    memory: 128Mi
+  limits:
+    cpu: 500m
+    memory: 256Mi
+
+# Disable monitoring components for dev environment.
+monitoring:
+  podMonitorEnabled: false
+  grafanaDashboard:
+    create: false

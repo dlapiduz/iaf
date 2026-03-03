@@ -1,0 +1,27 @@
+{
+  "version": "1.0",
+  "sdk": "OpenTelemetry",
+  "exporter": "OTLP",
+  "endpointSource": "OTEL_EXPORTER_OTLP_ENDPOINT environment variable — injected automatically by the IAF platform. Never hardcode this value.",
+  "serviceNameSource": "OTEL_SERVICE_NAME environment variable — set to your IAF application name automatically.",
+  "requiredSpanAttributes": [
+    {"name": "http.method",                  "description": "HTTP method: GET, POST, etc."},
+    {"name": "http.route",                   "description": "Route template: /users/:id, not /users/123"},
+    {"name": "http.status_code",             "description": "HTTP response status code (integer)"},
+    {"name": "http.response_content_length", "description": "Response body size in bytes (optional but recommended)"}
+  ],
+  "traceLogCorrelation": {
+    "description": "Add trace_id and span_id to every structured log line to enable Grafana trace-to-log correlation.",
+    "requiredLogFields": ["trace_id", "span_id"],
+    "howToExtract": "Use the OTel SDK span context API to read the current trace and span IDs at log time."
+  },
+  "autoInstrumentation": {
+    "nodejs": "Available — @opentelemetry/auto-instrumentations-node",
+    "python": "Available — opentelemetry-instrument CLI wrapper",
+    "java":   "Available — opentelemetry-javaagent.jar (-javaagent flag)",
+    "go":     "Not available — manual SDK required",
+    "ruby":   "Available — opentelemetry-instrumentation-all gem"
+  },
+  "securityNote": "Span attributes must never contain secrets, tokens, or PII. Traces are stored and queryable by platform operators.",
+  "verification": "Use app_status to get the traceExploreUrl field (when IAF_TEMPO_URL is configured) to verify traces are flowing."
+}

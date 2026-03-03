@@ -46,6 +46,23 @@ func RegisterPlatformInfo(server *gomcp.Server, deps *tools.Dependencies) {
 				"containerUser": "non-root (buildpack default)",
 				"baseOS":        "Ubuntu Jammy 22.04 LTS",
 			},
+			"managedServices": map[string]any{
+				"note": "Do NOT deploy databases as Applications. Use provision_service instead.",
+				"availableTypes": []map[string]any{
+					{
+						"type":    "postgres",
+						"version": "16",
+						"engine":  "CloudNativePG",
+						"plans": []map[string]any{
+							{"plan": "micro", "instances": 1, "memory": "256Mi", "storage": "1Gi", "useCase": "development"},
+							{"plan": "small", "instances": 1, "memory": "512Mi", "storage": "5Gi", "useCase": "light production"},
+							{"plan": "ha", "instances": 3, "memory": "1Gi", "storage": "10Gi", "useCase": "high-availability production"},
+						},
+						"injectedEnvVars": []string{"DATABASE_URL", "PGHOST", "PGPORT", "PGDATABASE", "PGUSER", "PGPASSWORD"},
+					},
+				},
+				"workflow": "provision_service → poll service_status every 10s until Ready → bind_service → use DATABASE_URL in application",
+			},
 		}
 
 		data, err := json.MarshalIndent(info, "", "  ")
