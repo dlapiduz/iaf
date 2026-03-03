@@ -37,6 +37,17 @@ import (
 // +kubebuilder:rbac:groups=traefik.io,resources=ingressroutes,verbs=get;list;watch;create;update;patch;delete
 // +kubebuilder:rbac:groups=cert-manager.io,resources=certificates,verbs=get;list;watch;create;update;patch;delete
 
+// managedServicePGEnvVars maps CNPG Secret keys to PG* environment variable names
+// injected when a ManagedService is bound to an Application.
+var managedServicePGEnvVars = map[string]string{
+	"uri":      "DATABASE_URL",
+	"host":     "PGHOST",
+	"port":     "PGPORT",
+	"dbname":   "PGDATABASE",
+	"username": "PGUSER",
+	"password": "PGPASSWORD",
+}
+
 // ApplicationReconciler reconciles Application CRs.
 type ApplicationReconciler struct {
 	client.Client
@@ -183,19 +194,7 @@ func (r *ApplicationReconciler) reconcileDeployment(ctx context.Context, app *ia
 
 	envVars := make([]corev1.EnvVar, 0, len(app.Spec.Env))
 	for _, e := range app.Spec.Env {
-		if e.SecretKeyRef != nil {
-			envVars = append(envVars, corev1.EnvVar{
-				Name: e.Name,
-				ValueFrom: &corev1.EnvVarSource{
-					SecretKeyRef: &corev1.SecretKeySelector{
-						LocalObjectReference: corev1.LocalObjectReference{Name: e.SecretKeyRef.Name},
-						Key:                 e.SecretKeyRef.Key,
-					},
-				},
-			})
-		} else {
-			envVars = append(envVars, corev1.EnvVar{Name: e.Name, Value: e.Value})
-		}
+		envVars = append(envVars, corev1.EnvVar{Name: e.Name, Value: e.Value})
 	}
 
 	// Inject env vars from attached data sources.
@@ -222,6 +221,21 @@ func (r *ApplicationReconciler) reconcileDeployment(ctx context.Context, app *ia
 				ValueFrom: &corev1.EnvVarSource{
 					SecretKeyRef: &corev1.SecretKeySelector{
 						LocalObjectReference: corev1.LocalObjectReference{Name: ads.SecretName},
+						Key:                 secretKey,
+					},
+				},
+			})
+		}
+	}
+
+	// Inject env vars from bound managed services (postgres: CNPG secret keys → PG* env vars).
+	for _, bms := range app.Spec.BoundManagedServices {
+		for secretKey, envVarName := range managedServicePGEnvVars {
+			envVars = append(envVars, corev1.EnvVar{
+				Name: envVarName,
+				ValueFrom: &corev1.EnvVarSource{
+					SecretKeyRef: &corev1.SecretKeySelector{
+						LocalObjectReference: corev1.LocalObjectReference{Name: bms.SecretName},
 						Key:                 secretKey,
 					},
 				},
