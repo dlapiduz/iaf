@@ -1,0 +1,30 @@
+{
+  "cli_version": "0.4.8",
+  "checkpoint_id": "b33a2bb6cb9d",
+  "strategy": "manual-commit",
+  "branch": "feat/issue-15-multi-replica-logs",
+  "checkpoints_count": 0,
+  "files_touched": [
+    "internal/api/handlers/logs.go",
+    "internal/k8s/pods.go",
+    "internal/k8s/pods_test.go",
+    "internal/mcp/tools/logs.go",
+    "internal/mcp/tools/logs_test.go"
+  ],
+  "sessions": [
+    {
+      "metadata": "/b3/3a2bb6cb9d/0/metadata.json",
+      "transcript": "/b3/3a2bb6cb9d/0/full.jsonl",
+      "context": "/b3/3a2bb6cb9d/0/context.md",
+      "content_hash": "/b3/3a2bb6cb9d/0/content_hash.txt",
+      "prompt": "/b3/3a2bb6cb9d/0/prompt.txt"
+    }
+  ],
+  "token_usage": {
+    "input_tokens": 40,
+    "cache_creation_tokens": 56340,
+    "cache_read_tokens": 2365852,
+    "output_tokens": 20705,
+    "api_call_count": 38
+  }
+}
