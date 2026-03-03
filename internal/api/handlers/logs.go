@@ -9,6 +9,7 @@ import (
 
 	iafv1alpha1 "github.com/dlapiduz/iaf/api/v1alpha1"
 	"github.com/dlapiduz/iaf/internal/auth"
+	k8shelper "github.com/dlapiduz/iaf/internal/k8s"
 	"github.com/labstack/echo/v4"
 	corev1 "k8s.io/api/core/v1"
 	apierrors "k8s.io/apimachinery/pkg/api/errors"
@@ -46,7 +47,11 @@ func (h *LogsHandler) resolveNamespace(c echo.Context) (string, error) {
 	return sess.Namespace, nil
 }
 
-// GetLogs returns logs for an application's pods.
+// GetLogs returns logs for an application's pods. Accepts optional query params:
+//   - lines: number of log lines (default 100)
+//   - pod_name: fetch logs from a specific pod (validated against app's label selector)
+//
+// Returns the selected pod's name and a list of all available pods.
 func (h *LogsHandler) GetLogs(c echo.Context) error {
 	namespace, err := h.resolveNamespace(c)
 	if err != nil {
@@ -60,6 +65,7 @@ func (h *LogsHandler) GetLogs(c echo.Context) error {
 			lines = parsed
 		}
 	}
+	podName := c.QueryParam("pod_name")
 
 	// Verify application exists
 	var app iafv1alpha1.Application
@@ -81,26 +87,39 @@ func (h *LogsHandler) GetLogs(c echo.Context) error {
 
 	if len(podList.Items) == 0 {
 		return c.JSON(http.StatusOK, map[string]any{
-			"logs": "",
-			"pods": 0,
+			"logs":          "",
+			"pods":          0,
+			"availablePods": []string{},
 		})
 	}
 
-	// Get logs from the first pod
-	pod := podList.Items[0]
+	availablePods := k8shelper.PodNames(podList.Items, k8shelper.MaxAvailablePods)
+
+	var pod *corev1.Pod
+	if podName != "" {
+		pod, err = k8shelper.FindPodByName(podList.Items, podName, "iaf.io/application", name)
+		if err != nil {
+			return c.JSON(http.StatusBadRequest, map[string]string{"error": err.Error()})
+		}
+	} else {
+		pod = k8shelper.SelectMostRecentPod(podList.Items)
+	}
+
 	logs, err := h.getPodLogs(c.Request().Context(), namespace, pod.Name, "app", lines)
 	if err != nil {
 		return c.JSON(http.StatusInternalServerError, map[string]string{"error": err.Error()})
 	}
 
 	return c.JSON(http.StatusOK, map[string]any{
-		"logs":    logs,
-		"pods":    len(podList.Items),
-		"podName": pod.Name,
+		"logs":          logs,
+		"pods":          len(podList.Items),
+		"podName":       pod.Name,
+		"availablePods": availablePods,
 	})
 }
 
 // GetBuildLogs returns kpack build logs for an application.
+// Uses the most recently started build pod (sort by CreationTimestamp descending).
 func (h *LogsHandler) GetBuildLogs(c echo.Context) error {
 	namespace, err := h.resolveNamespace(c)
 	if err != nil {
@@ -134,8 +153,8 @@ func (h *LogsHandler) GetBuildLogs(c echo.Context) error {
 		})
 	}
 
-	// Get logs from the most recent build pod
-	pod := podList.Items[len(podList.Items)-1]
+	// Use the most recently started build pod
+	pod := k8shelper.SelectMostRecentPod(podList.Items)
 	var allLogs string
 	for _, container := range pod.Spec.InitContainers {
 		logs, err := h.getPodLogs(c.Request().Context(), namespace, pod.Name, container.Name, 200)
