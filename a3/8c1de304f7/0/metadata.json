@@ -1,0 +1,44 @@
+{
+  "cli_version": "0.4.8",
+  "checkpoint_id": "a38c1de304f7",
+  "session_id": "94b35922-3998-46fe-bf0d-bf7fea7f805e",
+  "strategy": "manual-commit",
+  "created_at": "2026-03-04T14:16:44.360971Z",
+  "branch": "feat/issue-56-coach-server",
+  "checkpoints_count": 1,
+  "files_touched": [
+    "internal/mcp/coach/aliases.go",
+    "internal/mcp/coach/coding_guide.go",
+    "internal/mcp/coach/deps.go",
+    "internal/mcp/coach/language_guide.go",
+    "internal/mcp/coach/logging_guide.go",
+    "internal/mcp/coach/logging_standards.go",
+    "internal/mcp/coach/metrics_guide.go",
+    "internal/mcp/coach/metrics_standards.go",
+    "internal/mcp/coach/org_standards.go",
+    "internal/mcp/coach/scaffold.go",
+    "internal/mcp/coach/scaffold_guide.go",
+    "internal/mcp/coach/standards_loader.go",
+    "internal/mcp/coach/supported_languages.go",
+    "internal/mcp/coach/tracing_guide.go",
+    "internal/mcp/coach/tracing_standards.go"
+  ],
+  "agent": "Claude Code",
+  "turn_id": "69c11ef45fce",
+  "token_usage": {
+    "input_tokens": 46,
+    "cache_creation_tokens": 49345,
+    "cache_read_tokens": 2569519,
+    "output_tokens": 15231,
+    "api_call_count": 42
+  },
+  "initial_attribution": {
+    "calculated_at": "2026-03-04T14:16:44.102027Z",
+    "agent_lines": 1717,
+    "human_added": 635,
+    "human_modified": 161,
+    "human_removed": 0,
+    "total_committed": 2513,
+    "agent_percentage": 68.32471150019896
+  }
+}

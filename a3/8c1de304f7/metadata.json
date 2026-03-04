@@ -1,0 +1,40 @@
+{
+  "cli_version": "0.4.8",
+  "checkpoint_id": "a38c1de304f7",
+  "strategy": "manual-commit",
+  "branch": "feat/issue-56-coach-server",
+  "checkpoints_count": 1,
+  "files_touched": [
+    "internal/mcp/coach/aliases.go",
+    "internal/mcp/coach/coding_guide.go",
+    "internal/mcp/coach/deps.go",
+    "internal/mcp/coach/language_guide.go",
+    "internal/mcp/coach/logging_guide.go",
+    "internal/mcp/coach/logging_standards.go",
+    "internal/mcp/coach/metrics_guide.go",
+    "internal/mcp/coach/metrics_standards.go",
+    "internal/mcp/coach/org_standards.go",
+    "internal/mcp/coach/scaffold.go",
+    "internal/mcp/coach/scaffold_guide.go",
+    "internal/mcp/coach/standards_loader.go",
+    "internal/mcp/coach/supported_languages.go",
+    "internal/mcp/coach/tracing_guide.go",
+    "internal/mcp/coach/tracing_standards.go"
+  ],
+  "sessions": [
+    {
+      "metadata": "/a3/8c1de304f7/0/metadata.json",
+      "transcript": "/a3/8c1de304f7/0/full.jsonl",
+      "context": "/a3/8c1de304f7/0/context.md",
+      "content_hash": "/a3/8c1de304f7/0/content_hash.txt",
+      "prompt": "/a3/8c1de304f7/0/prompt.txt"
+    }
+  ],
+  "token_usage": {
+    "input_tokens": 46,
+    "cache_creation_tokens": 49345,
+    "cache_read_tokens": 2569519,
+    "output_tokens": 15231,
+    "api_call_count": 42
+  }
+}
