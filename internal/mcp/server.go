@@ -60,7 +60,14 @@ KEY DETAILS:
 
 CODING STANDARDS:
 - Read the coding-guide prompt for organisation coding standards before writing any code
-- Read iaf://org/coding-standards for the machine-readable standards document`
+- Read iaf://org/coding-standards for the machine-readable standards document
+
+IMPORTANT RULES (follow for every app):
+1. Write all code to disk before uploading — do not pass code as strings in memory, write actual files first
+2. Use version control if the setup_github_repo tool is available — commit code before deploying
+3. No in-memory storage (arrays, maps, global variables for data) — apps restart and lose state; use a managed database instead (provision_service for PostgreSQL, or attach a data source)
+4. Follow 12-factor app principles: config via env vars, stateless processes, explicit dependencies, stdout logging
+5. Authentication on admin/sensitive routes is encouraged but NOT required on read-only public endpoints`
 
 // NewServer creates and configures the MCP server with all tools.
 // If loader is non-nil, org standards are served from that loader; otherwise platform defaults are used.
