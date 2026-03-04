@@ -1,0 +1,41 @@
+{
+  "version": "1.0",
+  "inputValidation": {
+    "rules": [
+      "Use parameterized queries / prepared statements for all database access — never concatenate user input into SQL",
+      "Validate content-type on all API endpoints that accept request bodies",
+      "Reject or sanitize inputs before passing to OS commands, shell, or eval",
+      "Validate file paths: reject '..' traversal sequences, restrict to expected directories"
+    ]
+  },
+  "secretHandling": {
+    "rules": [
+      "Read credentials exclusively from environment variables — never hardcode tokens, passwords, or keys",
+      "Never log secret values, even at debug level",
+      "Never commit secrets to version control — use .gitignore and pre-commit hooks",
+      "Compare tokens with constant-time comparison (crypto/subtle, hmac.Equal) to prevent timing attacks"
+    ]
+  },
+  "outputEncoding": {
+    "rules": [
+      "HTML-escape all user-supplied content rendered in HTML responses",
+      "Return JSON responses with Content-Type: application/json to prevent MIME sniffing",
+      "Set security headers: X-Content-Type-Options: nosniff, X-Frame-Options: DENY"
+    ]
+  },
+  "dependencyHygiene": {
+    "rules": [
+      "Pin exact dependency versions in lock files (package-lock.json, go.sum, Pipfile.lock, Gemfile.lock)",
+      "Enable automated vulnerability scanning (Dependabot, govulncheck, pip-audit, bundler-audit)",
+      "Remove unused dependencies — every dependency is an attack surface"
+    ]
+  },
+  "owaspReferences": [
+    {"id": "A01:2021", "name": "Broken Access Control", "url": "https://owasp.org/Top10/A01_2021-Broken_Access_Control/"},
+    {"id": "A02:2021", "name": "Cryptographic Failures", "url": "https://owasp.org/Top10/A02_2021-Cryptographic_Failures/"},
+    {"id": "A03:2021", "name": "Injection", "url": "https://owasp.org/Top10/A03_2021-Injection/"},
+    {"id": "A05:2021", "name": "Security Misconfiguration", "url": "https://owasp.org/Top10/A05_2021-Security_Misconfiguration/"},
+    {"id": "A06:2021", "name": "Vulnerable and Outdated Components", "url": "https://owasp.org/Top10/A06_2021-Vulnerable_and_Outdated_Components/"},
+    {"id": "A07:2021", "name": "Identification and Authentication Failures", "url": "https://owasp.org/Top10/A07_2021-Identification_and_Authentication_Failures/"}
+  ]
+}

@@ -1,0 +1,25 @@
+{
+  "version": "1.0",
+  "requiredStages": ["lint", "unit-test", "security-scan", "build", "deploy-staging", "smoke-test", "deploy-prod"],
+  "approvalRequired": ["deploy-prod"],
+  "environments": [
+    {
+      "name": "staging",
+      "promotesFrom": [],
+      "autoDeploy": true,
+      "requiredChecks": ["lint", "unit-test", "security-scan", "build"]
+    },
+    {
+      "name": "prod",
+      "promotesFrom": ["staging"],
+      "autoDeploy": false,
+      "requiredChecks": ["smoke-test"]
+    }
+  ],
+  "deploymentStrategy": "rolling",
+  "iafMapping": {
+    "rolling": "Update Application replicas field; controller performs rolling update",
+    "blue-green": "Deploy new Application with -v2 suffix, swap ingress host, delete old",
+    "canary": "Deploy new Application with lower replicas, monitor, scale up and remove old"
+  }
+}

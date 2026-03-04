@@ -68,6 +68,8 @@ Use the push_code tool to upload source files as a tarball. The platform stores 
 - Images are built in-cluster; no external registry credentials are needed for blob/git builds.
 - Each session is isolated in its own Kubernetes namespace.
 
+For detailed secure coding practices: read the ` + "`security-guide`" + ` prompt (accepts optional ` + "`language`" + ` argument) and ` + "`iaf://org/security-standards`" + `.
+
 ## Replicas and Scaling
 - Default: 1 replica.
 - Set "replicas" field to scale horizontally.

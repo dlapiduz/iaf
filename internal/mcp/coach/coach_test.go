@@ -42,8 +42,8 @@ func TestCoachListPrompts(t *testing.T) {
 		t.Fatal(err)
 	}
 
-	if len(res.Prompts) != 6 {
-		t.Fatalf("expected 6 prompts, got %d", len(res.Prompts))
+	if len(res.Prompts) != 8 {
+		t.Fatalf("expected 8 prompts, got %d", len(res.Prompts))
 	}
 
 	names := map[string]bool{}
@@ -53,6 +53,7 @@ func TestCoachListPrompts(t *testing.T) {
 	for _, expected := range []string{
 		"language-guide", "coding-guide", "scaffold-guide",
 		"logging-guide", "metrics-guide", "tracing-guide",
+		"cicd-guide", "security-guide",
 	} {
 		if !names[expected] {
 			t.Errorf("expected prompt %q in listing", expected)
@@ -69,9 +70,9 @@ func TestCoachListResources(t *testing.T) {
 		t.Fatal(err)
 	}
 
-	// 4 static resources (coding, logging, metrics, tracing standards)
-	if len(res.Resources) != 4 {
-		t.Fatalf("expected 4 static resources, got %d", len(res.Resources))
+	// 7 static resources (coding, logging, metrics, tracing, github, cicd, security standards)
+	if len(res.Resources) != 7 {
+		t.Fatalf("expected 7 static resources, got %d", len(res.Resources))
 	}
 
 	names := map[string]bool{}
@@ -81,6 +82,7 @@ func TestCoachListResources(t *testing.T) {
 	for _, expected := range []string{
 		"org-coding-standards", "org-logging-standards",
 		"org-metrics-standards", "org-tracing-standards",
+		"github-standards", "org-cicd-standards", "org-security-standards",
 	} {
 		if !names[expected] {
 			t.Errorf("expected resource %q in listing", expected)
@@ -213,4 +215,91 @@ func TestCoachStartupRequiresToken(t *testing.T) {
 		t.Error("test precondition: token should be empty")
 	}
 	// The actual guard is in cmd/coachserver/main.go; this test documents the requirement.
+}
+
+func TestCoachCICDGuide(t *testing.T) {
+	cs := setupCoachClient(t)
+	ctx := context.Background()
+
+	res, err := cs.GetPrompt(ctx, &gomcp.GetPromptParams{
+		Name:      "cicd-guide",
+		Arguments: map[string]string{},
+	})
+	if err != nil {
+		t.Fatal(err)
+	}
+	if len(res.Messages) == 0 {
+		t.Fatal("expected at least one message")
+	}
+	text := res.Messages[0].Content.(*gomcp.TextContent).Text
+
+	for _, want := range []string{"lint", "deploy-prod", "iaf://org/cicd-standards"} {
+		if !strings.Contains(text, want) {
+			t.Errorf("expected %q in cicd-guide response", want)
+		}
+	}
+}
+
+func TestCoachSecurityGuide_Overview(t *testing.T) {
+	cs := setupCoachClient(t)
+	ctx := context.Background()
+
+	res, err := cs.GetPrompt(ctx, &gomcp.GetPromptParams{
+		Name:      "security-guide",
+		Arguments: map[string]string{},
+	})
+	if err != nil {
+		t.Fatal(err)
+	}
+	if len(res.Messages) == 0 {
+		t.Fatal("expected at least one message")
+	}
+	text := res.Messages[0].Content.(*gomcp.TextContent).Text
+
+	for _, want := range []string{"SQL", "iaf://org/security-standards"} {
+		if !strings.Contains(text, want) {
+			t.Errorf("expected %q in security-guide overview", want)
+		}
+	}
+}
+
+func TestCoachSecurityGuide_PerLanguage(t *testing.T) {
+	cs := setupCoachClient(t)
+	ctx := context.Background()
+
+	res, err := cs.GetPrompt(ctx, &gomcp.GetPromptParams{
+		Name:      "security-guide",
+		Arguments: map[string]string{"language": "go"},
+	})
+	if err != nil {
+		t.Fatal(err)
+	}
+	if len(res.Messages) == 0 {
+		t.Fatal("expected at least one message")
+	}
+	text := res.Messages[0].Content.(*gomcp.TextContent).Text
+
+	for _, want := range []string{"database/sql", "WRONG"} {
+		if !strings.Contains(text, want) {
+			t.Errorf("expected %q in security-guide go response", want)
+		}
+	}
+}
+
+func TestCoachGitHubStandards(t *testing.T) {
+	cs := setupCoachClient(t)
+	ctx := context.Background()
+
+	res, err := cs.ReadResource(ctx, &gomcp.ReadResourceParams{
+		URI: "iaf://org/github-standards",
+	})
+	if err != nil {
+		t.Fatal(err)
+	}
+	if len(res.Contents) == 0 || res.Contents[0].Text == "" {
+		t.Fatal("expected non-empty github standards")
+	}
+	if !strings.Contains(res.Contents[0].Text, "defaultBranch") {
+		t.Errorf("expected 'defaultBranch' in github-standards JSON, got: %s", res.Contents[0].Text[:200])
+	}
 }

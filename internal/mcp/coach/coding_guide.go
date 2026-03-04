@@ -107,6 +107,11 @@ Required on any route that modifies data or accesses sensitive information.
 Optional on read-only public endpoints — do not add unnecessary auth to health checks or public views.
 `)
 
+		sb.WriteString("\n## Security\n")
+		sb.WriteString("Read `security-guide` (with optional `language` argument) for SQL injection prevention,\n")
+		sb.WriteString("secret handling, and OWASP Top 10 guidance specific to your stack.\n")
+		sb.WriteString("Read `iaf://org/security-standards` for the machine-readable security standard.\n")
+
 		sb.WriteString("\n## Full Standards Reference\n")
 		sb.WriteString("Read `iaf://org/coding-standards` for the machine-readable JSON version of these standards.\n")
 
