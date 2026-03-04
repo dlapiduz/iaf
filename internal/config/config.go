@@ -2,6 +2,7 @@ package config
 
 import (
 	"strings"
+	"time"
 
 	"github.com/spf13/viper"
 )
@@ -37,6 +38,12 @@ type Config struct {
 	// Org standards
 	OrgStandardsFile string `mapstructure:"org_standards_file"`
 
+	// Session lifecycle — optional. Zero values disable GC (sessions never expire).
+	// IAF_SESSION_TTL: idle TTL for new sessions (e.g. "24h"). 0 = no expiry.
+	// IAF_SESSION_GC_INTERVAL: how often to check for expired sessions (e.g. "1h"). 0 = disabled.
+	SessionTTL        time.Duration `mapstructure:"session_ttl"`
+	SessionGCInterval time.Duration `mapstructure:"session_gc_interval"`
+
 	// GitHub integration (optional — GitHub features are disabled when token is empty)
 	GitHubToken string `mapstructure:"github_token"`
 	GitHubOrg   string `mapstructure:"github_org"`
@@ -65,6 +72,8 @@ func Load() (*Config, error) {
 	v.SetDefault("github_token", "")
 	v.SetDefault("github_org", "")
 	v.SetDefault("tempo_url", "")
+	v.SetDefault("session_ttl", 0)
+	v.SetDefault("session_gc_interval", 0)
 
 	v.SetEnvPrefix("IAF")
 	v.SetEnvKeyReplacer(strings.NewReplacer(".", "_"))

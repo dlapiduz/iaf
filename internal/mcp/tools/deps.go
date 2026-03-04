@@ -3,6 +3,7 @@ package tools
 import (
 	"context"
 	"fmt"
+	"time"
 
 	iafv1alpha1 "github.com/dlapiduz/iaf/api/v1alpha1"
 	"github.com/dlapiduz/iaf/internal/auth"
@@ -31,14 +32,18 @@ type Dependencies struct {
 	// TempoURL is the Grafana base URL used to build traceExploreUrl in
 	// app_status responses. Set from IAF_TEMPO_URL. Empty = feature disabled.
 	TempoURL string
+	// SessionTTL is the idle TTL for new sessions. 0 = sessions never expire.
+	SessionTTL time.Duration
 }
 
 // ResolveNamespace looks up the session and returns its namespace.
+// It also updates the session's LastActivityAt to extend the TTL.
 func (d *Dependencies) ResolveNamespace(sessionID string) (string, error) {
 	sess, ok := d.Sessions.Lookup(sessionID)
 	if !ok {
 		return "", fmt.Errorf("session not found, call the register tool first")
 	}
+	d.Sessions.Touch(sessionID)
 	return sess.Namespace, nil
 }
 

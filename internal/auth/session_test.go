@@ -13,7 +13,7 @@ func TestRegisterAndLookup(t *testing.T) {
 		t.Fatal(err)
 	}
 
-	sess, err := store.Register("my-project")
+	sess, err := store.Register("my-project", 0)
 	if err != nil {
 		t.Fatal(err)
 	}
@@ -58,7 +58,7 @@ func TestSessionPersistence(t *testing.T) {
 	if err != nil {
 		t.Fatal(err)
 	}
-	sess, err := store1.Register("test")
+	sess, err := store1.Register("test", 0)
 	if err != nil {
 		t.Fatal(err)
 	}
@@ -84,7 +84,7 @@ func TestRegisterEmptyName(t *testing.T) {
 		t.Fatal(err)
 	}
 
-	sess, err := store.Register("")
+	sess, err := store.Register("", 0)
 	if err != nil {
 		t.Fatal(err)
 	}
@@ -110,7 +110,7 @@ func TestConcurrentRegister(t *testing.T) {
 		wg.Add(1)
 		go func(idx int) {
 			defer wg.Done()
-			sessions[idx], errs[idx] = store.Register("")
+			sessions[idx], errs[idx] = store.Register("", 0)
 		}(i)
 	}
 	wg.Wait()

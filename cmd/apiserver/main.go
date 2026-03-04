@@ -15,6 +15,7 @@ import (
 	"github.com/dlapiduz/iaf/internal/k8s"
 	iafmcp "github.com/dlapiduz/iaf/internal/mcp"
 	"github.com/dlapiduz/iaf/internal/orgstandards"
+	"github.com/dlapiduz/iaf/internal/sessiongc"
 	"github.com/dlapiduz/iaf/internal/sourcestore"
 	"github.com/labstack/echo/v4"
 	gomcp "github.com/modelcontextprotocol/go-sdk/mcp"
@@ -79,6 +80,13 @@ func main() {
 	orgLoader := orgstandards.New(cfg.OrgStandardsFile, logger)
 	go orgLoader.Start(ctx)
 
+	// Start session GC if TTL and GC interval are configured.
+	if cfg.SessionTTL > 0 && cfg.SessionGCInterval > 0 {
+		cleaner := sessiongc.New(k8sClient, store, sessions, logger)
+		go cleaner.Start(ctx, cfg.SessionGCInterval)
+		logger.Info("session GC started", "ttl", cfg.SessionTTL, "interval", cfg.SessionGCInterval)
+	}
+
 	// Create GitHub client if configured.
 	var ghClient iafgithub.Client
 	if cfg.GitHubToken != "" && cfg.GitHubOrg != "" {
@@ -86,7 +94,7 @@ func main() {
 	}
 
 	// Create MCP server and mount as Streamable HTTP endpoint
-	mcpServer := iafmcp.NewServer(k8sClient, sessions, store, cfg.BaseDomain, orgLoader, ghClient, cfg.GitHubOrg, cfg.GitHubToken, cfg.TempoURL, clientset)
+	mcpServer := iafmcp.NewServer(k8sClient, sessions, store, cfg.BaseDomain, orgLoader, ghClient, cfg.GitHubOrg, cfg.GitHubToken, cfg.TempoURL, cfg.SessionTTL, clientset)
 	mcpHandler := gomcp.NewStreamableHTTPHandler(func(r *http.Request) *gomcp.Server {
 		return mcpServer
 	}, &gomcp.StreamableHTTPOptions{Stateless: true})

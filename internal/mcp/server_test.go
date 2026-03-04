@@ -43,7 +43,7 @@ func setupIntegrationServer(t *testing.T) *gomcp.ClientSession {
 		t.Fatal(err)
 	}
 
-	server := iafmcp.NewServer(k8sClient, sessions, store, "test.example.com", nil, nil, "", "", "")
+	server := iafmcp.NewServer(k8sClient, sessions, store, "test.example.com", nil, nil, "", "", "", 0)
 
 	st, ct := gomcp.NewInMemoryTransports()
 	if _, err := server.Connect(ctx, st, nil); err != nil {
@@ -193,7 +193,7 @@ func setupGitHubIntegrationServer(t *testing.T) *gomcp.ClientSession {
 	}
 
 	ghClient := &iafgithub.MockClient{}
-	server := iafmcp.NewServer(k8sClient, sessions, store, "test.example.com", nil, ghClient, "test-org", "test-token", "")
+	server := iafmcp.NewServer(k8sClient, sessions, store, "test.example.com", nil, ghClient, "test-org", "test-token", "", 0)
 
 	st, ct := gomcp.NewInMemoryTransports()
 	if _, err := server.Connect(ctx, st, nil); err != nil {
@@ -300,9 +300,9 @@ func setupServerForLogs(t *testing.T, withClientset bool) (*gomcp.ClientSession,
 	var server *gomcp.Server
 	if withClientset {
 		cs := k8sfake.NewSimpleClientset()
-		server = iafmcp.NewServer(k8sClient, sessions, store, "test.example.com", nil, nil, "", "", "", cs)
+		server = iafmcp.NewServer(k8sClient, sessions, store, "test.example.com", nil, nil, "", "", "", 0, cs)
 	} else {
-		server = iafmcp.NewServer(k8sClient, sessions, store, "test.example.com", nil, nil, "", "", "")
+		server = iafmcp.NewServer(k8sClient, sessions, store, "test.example.com", nil, nil, "", "", "", 0)
 	}
 
 	st, ct := gomcp.NewInMemoryTransports()

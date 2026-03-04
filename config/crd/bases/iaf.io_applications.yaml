@@ -81,6 +81,28 @@ spec:
                   Set by the platform when source code is uploaded.
                   Mutually exclusive with Image and Git.
                 type: string
+              boundManagedServices:
+                description: |-
+                  BoundManagedServices lists managed services bound to this application.
+                  The controller injects connection credentials from each service as env vars into the Deployment.
+                  Use the bind_service MCP tool to add entries here.
+                items:
+                  description: |-
+                    BoundManagedService records a managed service bound to an Application.
+                    The controller injects PG* connection env vars from the referenced Secret into the Deployment.
+                  properties:
+                    secretName:
+                      description: SecretName is the name of the CNPG connection Secret
+                        in the same namespace.
+                      type: string
+                    serviceName:
+                      description: ServiceName is the name of the ManagedService CR.
+                      type: string
+                  required:
+                  - secretName
+                  - serviceName
+                  type: object
+                type: array
               env:
                 description: Env specifies environment variables for the application
                   container.
@@ -90,23 +112,8 @@ spec:
                     name:
                       description: Name of the environment variable.
                       type: string
-                    secretKeyRef:
-                      description: SecretKeyRef references a key in a Kubernetes Secret.
-                        Mutually exclusive with Value.
-                      properties:
-                        key:
-                          description: Key is the key within the Secret.
-                          type: string
-                        name:
-                          description: Name is the name of the Kubernetes Secret.
-                          type: string
-                      required:
-                      - key
-                      - name
-                      type: object
                     value:
-                      description: Value of the environment variable. Mutually exclusive
-                        with SecretKeyRef.
+                      description: Value of the environment variable.
                       type: string
                   required:
                   - name
