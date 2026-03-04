@@ -43,7 +43,7 @@ func setupIntegrationServer(t *testing.T) *gomcp.ClientSession {
 		t.Fatal(err)
 	}
 
-	server := iafmcp.NewServer(k8sClient, sessions, store, "test.example.com", nil, nil, "", "", "", 0)
+	server := iafmcp.NewServer(k8sClient, sessions, store, "test.example.com", nil, "", "", "", 0)
 
 	st, ct := gomcp.NewInMemoryTransports()
 	if _, err := server.Connect(ctx, st, nil); err != nil {
@@ -121,7 +121,7 @@ func TestNewServer_RegistersAllPrompts(t *testing.T) {
 		t.Fatal(err)
 	}
 
-	expectedPrompts := []string{"deploy-guide", "language-guide", "coding-guide", "scaffold-guide", "services-guide", "logging-guide", "metrics-guide", "tracing-guide"}
+	expectedPrompts := []string{"deploy-guide", "services-guide"}
 	promptNames := map[string]bool{}
 	for _, p := range res.Prompts {
 		promptNames[p.Name] = true
@@ -142,7 +142,7 @@ func TestNewServer_RegistersAllResources(t *testing.T) {
 		t.Fatal(err)
 	}
 
-	expectedResources := []string{"platform-info", "application-spec", "org-coding-standards", "data-catalog", "org-logging-standards", "org-metrics-standards", "org-tracing-standards"}
+	expectedResources := []string{"platform-info", "application-spec", "data-catalog"}
 	resourceNames := map[string]bool{}
 	for _, r := range res.Resources {
 		resourceNames[r.Name] = true
@@ -150,23 +150,6 @@ func TestNewServer_RegistersAllResources(t *testing.T) {
 	for _, name := range expectedResources {
 		if !resourceNames[name] {
 			t.Errorf("expected resource %q to be registered", name)
-		}
-	}
-
-	// Check resource templates
-	tmplRes, err := cs.ListResourceTemplates(ctx, nil)
-	if err != nil {
-		t.Fatal(err)
-	}
-
-	expectedTemplates := []string{"language-spec", "scaffold"}
-	templateNames := map[string]bool{}
-	for _, tmpl := range tmplRes.ResourceTemplates {
-		templateNames[tmpl.Name] = true
-	}
-	for _, name := range expectedTemplates {
-		if !templateNames[name] {
-			t.Errorf("expected resource template %q to be registered", name)
 		}
 	}
 }
@@ -193,7 +176,7 @@ func setupGitHubIntegrationServer(t *testing.T) *gomcp.ClientSession {
 	}
 
 	ghClient := &iafgithub.MockClient{}
-	server := iafmcp.NewServer(k8sClient, sessions, store, "test.example.com", nil, ghClient, "test-org", "test-token", "", 0)
+	server := iafmcp.NewServer(k8sClient, sessions, store, "test.example.com", ghClient, "test-org", "test-token", "", 0)
 
 	st, ct := gomcp.NewInMemoryTransports()
 	if _, err := server.Connect(ctx, st, nil); err != nil {
@@ -300,9 +283,9 @@ func setupServerForLogs(t *testing.T, withClientset bool) (*gomcp.ClientSession,
 	var server *gomcp.Server
 	if withClientset {
 		cs := k8sfake.NewSimpleClientset()
-		server = iafmcp.NewServer(k8sClient, sessions, store, "test.example.com", nil, nil, "", "", "", 0, cs)
+		server = iafmcp.NewServer(k8sClient, sessions, store, "test.example.com", nil, "", "", "", 0, cs)
 	} else {
-		server = iafmcp.NewServer(k8sClient, sessions, store, "test.example.com", nil, nil, "", "", "", 0)
+		server = iafmcp.NewServer(k8sClient, sessions, store, "test.example.com", nil, "", "", "", 0)
 	}
 
 	st, ct := gomcp.NewInMemoryTransports()

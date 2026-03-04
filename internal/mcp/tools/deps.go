@@ -8,27 +8,20 @@ import (
 	iafv1alpha1 "github.com/dlapiduz/iaf/api/v1alpha1"
 	"github.com/dlapiduz/iaf/internal/auth"
 	iafgithub "github.com/dlapiduz/iaf/internal/github"
-	"github.com/dlapiduz/iaf/internal/orgstandards"
 	"github.com/dlapiduz/iaf/internal/sourcestore"
 	"sigs.k8s.io/controller-runtime/pkg/client"
 )
 
 // Dependencies holds shared dependencies for MCP tools.
 type Dependencies struct {
-	Client       client.Client
-	Store        *sourcestore.Store
-	BaseDomain   string
-	Sessions     *auth.SessionStore
-	OrgStandards *orgstandards.Loader
+	Client     client.Client
+	Store      *sourcestore.Store
+	BaseDomain string
+	Sessions   *auth.SessionStore
 	// GitHub fields — all three must be set for GitHub tools to be registered.
 	GitHub      iafgithub.Client
 	GitHubToken string // stored but never surfaced in output or logs
 	GitHubOrg   string
-	// Observability standards — optional override file paths.
-	// When empty the embedded defaults in config/org-standards/*.json are used.
-	LoggingStandardsFile string
-	MetricsStandardsFile string
-	TracingStandardsFile string
 	// TempoURL is the Grafana base URL used to build traceExploreUrl in
 	// app_status responses. Set from IAF_TEMPO_URL. Empty = feature disabled.
 	TempoURL string
