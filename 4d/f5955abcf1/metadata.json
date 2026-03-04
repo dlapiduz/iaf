@@ -3,9 +3,20 @@
   "checkpoint_id": "4df5955abcf1",
   "strategy": "manual-commit",
   "branch": "feat/issue-6-session-lifecycle",
-  "checkpoints_count": 1,
+  "checkpoints_count": 2,
   "files_touched": [
-    "config/crd/bases/iaf.io_applications.yaml"
+    "cmd/apiserver/main.go",
+    "config/crd/bases/iaf.io_applications.yaml",
+    "config/rbac/role.yaml",
+    "internal/auth/session.go",
+    "internal/auth/session_test.go",
+    "internal/config/config.go",
+    "internal/mcp/server.go",
+    "internal/mcp/tools/deps.go",
+    "internal/mcp/tools/register.go",
+    "internal/mcp/tools/unregister.go",
+    "internal/sessiongc/gc.go",
+    "internal/sourcestore/store.go"
   ],
   "sessions": [
     {
@@ -14,13 +25,20 @@
       "context": "/4d/f5955abcf1/0/context.md",
       "content_hash": "/4d/f5955abcf1/0/content_hash.txt",
       "prompt": "/4d/f5955abcf1/0/prompt.txt"
+    },
+    {
+      "metadata": "/4d/f5955abcf1/1/metadata.json",
+      "transcript": "/4d/f5955abcf1/1/full.jsonl",
+      "context": "/4d/f5955abcf1/1/context.md",
+      "content_hash": "/4d/f5955abcf1/1/content_hash.txt",
+      "prompt": "/4d/f5955abcf1/1/prompt.txt"
     }
   ],
   "token_usage": {
-    "input_tokens": 9,
-    "cache_creation_tokens": 16717,
-    "cache_read_tokens": 296232,
-    "output_tokens": 6033,
-    "api_call_count": 7
+    "input_tokens": 63,
+    "cache_creation_tokens": 184723,
+    "cache_read_tokens": 6788163,
+    "output_tokens": 26878,
+    "api_call_count": 60
   }
 }

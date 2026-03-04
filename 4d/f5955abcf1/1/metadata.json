@@ -1,0 +1,43 @@
+{
+  "cli_version": "0.4.8",
+  "checkpoint_id": "4df5955abcf1",
+  "session_id": "2a08d96b-035a-43cc-ad2c-e10ee99f39ca",
+  "strategy": "manual-commit",
+  "created_at": "2026-03-04T14:01:40.393498Z",
+  "branch": "feat/issue-6-session-lifecycle",
+  "checkpoints_count": 1,
+  "files_touched": [
+    "cmd/apiserver/main.go",
+    "config/crd/bases/iaf.io_applications.yaml",
+    "config/rbac/role.yaml",
+    "internal/auth/session.go",
+    "internal/auth/session_test.go",
+    "internal/config/config.go",
+    "internal/mcp/server.go",
+    "internal/mcp/tools/deps.go",
+    "internal/mcp/tools/register.go",
+    "internal/mcp/tools/unregister.go",
+    "internal/sessiongc/gc.go",
+    "internal/sourcestore/store.go"
+  ],
+  "agent": "Claude Code",
+  "turn_id": "a3aeeac05d94",
+  "checkpoint_transcript_start": 194,
+  "transcript_lines_at_start": 194,
+  "token_usage": {
+    "input_tokens": 54,
+    "cache_creation_tokens": 168006,
+    "cache_read_tokens": 6491931,
+    "output_tokens": 20845,
+    "api_call_count": 53
+  },
+  "initial_attribution": {
+    "calculated_at": "2026-03-04T14:01:40.035292Z",
+    "agent_lines": 298,
+    "human_added": 533,
+    "human_modified": 2,
+    "human_removed": 0,
+    "total_committed": 833,
+    "agent_percentage": 35.77430972388956
+  }
+}
