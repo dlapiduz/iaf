@@ -1,0 +1,35 @@
+{
+  "version": "1.0",
+  "output": {
+    "target": "stdout",
+    "format": "ndjson",
+    "description": "One JSON object per line (JSON Lines / NDJSON). Do not log to files. Kubernetes captures stdout automatically; Grafana Alloy ships it to Loki."
+  },
+  "requiredFields": [
+    {"name": "time",  "type": "string", "format": "RFC3339", "example": "2026-02-19T14:23:01Z"},
+    {"name": "level", "type": "string", "values": ["debug","info","warn","error"], "example": "info"},
+    {"name": "msg",   "type": "string", "description": "Human-readable message", "example": "request completed"}
+  ],
+  "recommendedFields": [
+    {"name": "app",         "description": "IAF application name — matches Application CR name"},
+    {"name": "req_id",      "description": "Request ID from X-Request-ID header"},
+    {"name": "method",      "description": "HTTP method for request logs"},
+    {"name": "path",        "description": "HTTP path for request logs"},
+    {"name": "status",      "description": "HTTP status code (integer)"},
+    {"name": "duration_ms", "description": "Request duration in milliseconds (float)"},
+    {"name": "error",       "description": "Error message; only on level=error"}
+  ],
+  "correlationFields": [
+    {"name": "trace_id", "description": "OTel trace ID — add when tracing is enabled for Grafana trace-to-log correlation (see iaf://org/tracing-standards)"},
+    {"name": "span_id",  "description": "OTel span ID — add when tracing is enabled for Grafana trace-to-log correlation"}
+  ],
+  "prohibited": [
+    "API tokens, passwords, or any value from a Kubernetes Secret",
+    "Full request or response bodies (unless in debug mode with explicit opt-in)",
+    "PII: names, emails, phone numbers, IP addresses unless required and documented"
+  ],
+  "collection": {
+    "how": "Automatic — Grafana Alloy DaemonSet tails all pod stdout and ships to Loki",
+    "query": "Use app_logs MCP tool; operators use Grafana Explore with namespace filter"
+  }
+}

@@ -10,7 +10,7 @@ all: build
 ##@ Build
 
 .PHONY: build
-build: build-apiserver build-mcpserver build-controller
+build: build-apiserver build-mcpserver build-controller build-coachserver
 
 .PHONY: build-apiserver
 build-apiserver:
@@ -23,6 +23,10 @@ build-mcpserver:
 .PHONY: build-controller
 build-controller:
 	go build -o bin/controller ./cmd/controller
+
+.PHONY: build-coachserver
+build-coachserver:
+	go build -o bin/coachserver ./cmd/coachserver
 
 ##@ Run
 
