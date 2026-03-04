@@ -95,6 +95,16 @@ func main() {
 
 	// Create MCP server and mount as Streamable HTTP endpoint
 	mcpServer := iafmcp.NewServer(k8sClient, sessions, store, cfg.BaseDomain, orgLoader, ghClient, cfg.GitHubOrg, cfg.GitHubToken, cfg.TempoURL, cfg.SessionTTL, clientset)
+
+	// If a coach URL is configured, enumerate coach prompts/resources and register
+	// forwarding closures on the platform server so agents see them transparently.
+	// Graceful degradation: unreachable coach is a warning, not a fatal startup error.
+	if cfg.CoachURL != "" {
+		if err := iafmcp.RegisterCoachProxy(ctx, mcpServer, cfg.CoachURL, cfg.CoachToken); err != nil {
+			logger.Warn("coach proxy registration failed", "error", err)
+		}
+	}
+
 	mcpHandler := gomcp.NewStreamableHTTPHandler(func(r *http.Request) *gomcp.Server {
 		return mcpServer
 	}, &gomcp.StreamableHTTPOptions{Stateless: true})
