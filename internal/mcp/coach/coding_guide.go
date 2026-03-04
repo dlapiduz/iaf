@@ -112,6 +112,11 @@ Optional on read-only public endpoints — do not add unnecessary auth to health
 		sb.WriteString("secret handling, and OWASP Top 10 guidance specific to your stack.\n")
 		sb.WriteString("Read `iaf://org/security-standards` for the machine-readable security standard.\n")
 
+		sb.WriteString("\n## Open-Source License Policy\n")
+		sb.WriteString("Before adding any dependency, verify its SPDX license identifier is on the approved list.\n")
+		sb.WriteString("Read `license-guide` for the check-before-add workflow and approved/prohibited license list.\n")
+		sb.WriteString("Read `iaf://org/license-policy` for the machine-readable license policy.\n")
+
 		sb.WriteString("\n## Full Standards Reference\n")
 		sb.WriteString("Read `iaf://org/coding-standards` for the machine-readable JSON version of these standards.\n")
 

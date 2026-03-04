@@ -16,6 +16,7 @@ AVAILABLE PROMPTS:
 - tracing-guide:   Per-language OpenTelemetry tracing setup
 - cicd-guide:      CI/CD pipeline stages, approval gates, environment promotion, and IAF deployment strategies
 - security-guide:  SQL injection prevention, secret handling, output encoding, OWASP Top 10 (accepts optional language argument)
+- license-guide:   Open-source license policy — approved/prohibited SPDX IDs, check-before-add workflow
 
 AVAILABLE RESOURCES:
 - iaf://org/coding-standards    — Machine-readable organisation coding standards (JSON)
@@ -25,6 +26,7 @@ AVAILABLE RESOURCES:
 - iaf://org/github-standards    — Organisation GitHub workflow conventions (JSON)
 - iaf://org/cicd-standards      — Platform CI/CD pipeline standard (JSON)
 - iaf://org/security-standards  — Platform security coding standard (JSON)
+- iaf://org/license-policy      — Organisation open-source license policy (JSON)
 - iaf://languages/{language}    — Structured language specification (JSON)
 - iaf://scaffold/{framework}    — UI scaffold file map (nextjs or html) ready for push_code`
 
@@ -54,6 +56,7 @@ func NewServer(deps *Dependencies) *gomcp.Server {
 	RegisterTracingGuide(server, deps)
 	RegisterCICDGuide(server, deps)
 	RegisterSecurityGuide(server, deps)
+	RegisterLicenseGuide(server, deps)
 
 	// Resources
 	RegisterOrgStandards(server, deps)
@@ -65,6 +68,7 @@ func NewServer(deps *Dependencies) *gomcp.Server {
 	RegisterGitHubStandards(server, deps)
 	RegisterCICDStandards(server, deps)
 	RegisterSecurityStandards(server, deps)
+	RegisterLicensePolicy(server, deps)
 
 	return server
 }

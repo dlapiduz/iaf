@@ -37,6 +37,7 @@ func main() {
 		GitHubStandardsFile:   os.Getenv("COACH_GITHUB_STANDARDS_FILE"),
 		CICDStandardsFile:     os.Getenv("COACH_CICD_STANDARDS_FILE"),
 		SecurityStandardsFile: os.Getenv("COACH_SECURITY_STANDARDS_FILE"),
+		LicensePolicyFile:     os.Getenv("COACH_LICENSE_POLICY_FILE"),
 	}
 
 	orgFile := os.Getenv("COACH_ORG_STANDARDS_FILE")

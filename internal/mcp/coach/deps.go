@@ -14,4 +14,5 @@ type Dependencies struct {
 	GitHubStandardsFile   string
 	CICDStandardsFile     string
 	SecurityStandardsFile string
+	LicensePolicyFile     string
 }

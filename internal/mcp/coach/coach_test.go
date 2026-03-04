@@ -42,8 +42,8 @@ func TestCoachListPrompts(t *testing.T) {
 		t.Fatal(err)
 	}
 
-	if len(res.Prompts) != 8 {
-		t.Fatalf("expected 8 prompts, got %d", len(res.Prompts))
+	if len(res.Prompts) != 9 {
+		t.Fatalf("expected 9 prompts, got %d", len(res.Prompts))
 	}
 
 	names := map[string]bool{}
@@ -53,7 +53,7 @@ func TestCoachListPrompts(t *testing.T) {
 	for _, expected := range []string{
 		"language-guide", "coding-guide", "scaffold-guide",
 		"logging-guide", "metrics-guide", "tracing-guide",
-		"cicd-guide", "security-guide",
+		"cicd-guide", "security-guide", "license-guide",
 	} {
 		if !names[expected] {
 			t.Errorf("expected prompt %q in listing", expected)
@@ -70,9 +70,9 @@ func TestCoachListResources(t *testing.T) {
 		t.Fatal(err)
 	}
 
-	// 7 static resources (coding, logging, metrics, tracing, github, cicd, security standards)
-	if len(res.Resources) != 7 {
-		t.Fatalf("expected 7 static resources, got %d", len(res.Resources))
+	// 8 static resources (coding, logging, metrics, tracing, github, cicd, security, license)
+	if len(res.Resources) != 8 {
+		t.Fatalf("expected 8 static resources, got %d", len(res.Resources))
 	}
 
 	names := map[string]bool{}
@@ -83,6 +83,7 @@ func TestCoachListResources(t *testing.T) {
 		"org-coding-standards", "org-logging-standards",
 		"org-metrics-standards", "org-tracing-standards",
 		"github-standards", "org-cicd-standards", "org-security-standards",
+		"org-license-policy",
 	} {
 		if !names[expected] {
 			t.Errorf("expected resource %q in listing", expected)
@@ -301,5 +302,63 @@ func TestCoachGitHubStandards(t *testing.T) {
 	}
 	if !strings.Contains(res.Contents[0].Text, "defaultBranch") {
 		t.Errorf("expected 'defaultBranch' in github-standards JSON, got: %s", res.Contents[0].Text[:200])
+	}
+}
+
+func TestCoachLicenseGuide(t *testing.T) {
+	cs := setupCoachClient(t)
+	ctx := context.Background()
+
+	res, err := cs.GetPrompt(ctx, &gomcp.GetPromptParams{Name: "license-guide"})
+	if err != nil {
+		t.Fatal(err)
+	}
+	if len(res.Messages) == 0 {
+		t.Fatal("expected at least one message")
+	}
+	text := res.Messages[0].Content.(*gomcp.TextContent).Text
+
+	for _, want := range []string{"SPDX", "Apache-2.0", "GPL-3.0", "iaf://org/license-policy", "check-before-add"} {
+		if !strings.Contains(text, want) {
+			t.Errorf("expected %q in license-guide text", want)
+		}
+	}
+}
+
+func TestCoachLicensePolicy_Resource(t *testing.T) {
+	cs := setupCoachClient(t)
+	ctx := context.Background()
+
+	res, err := cs.ReadResource(ctx, &gomcp.ReadResourceParams{
+		URI: "iaf://org/license-policy",
+	})
+	if err != nil {
+		t.Fatal(err)
+	}
+	if len(res.Contents) == 0 || res.Contents[0].Text == "" {
+		t.Fatal("expected non-empty license policy")
+	}
+	text := res.Contents[0].Text
+	for _, want := range []string{"approvedSpdxIds", "prohibitedSpdxIds", "MIT", "Apache-2.0", "GPL-3.0-only"} {
+		if !strings.Contains(text, want) {
+			t.Errorf("expected %q in license-policy JSON", want)
+		}
+	}
+}
+
+func TestCoachCodingGuide_MentionsLicenseGuide(t *testing.T) {
+	cs := setupCoachClient(t)
+	ctx := context.Background()
+
+	res, err := cs.GetPrompt(ctx, &gomcp.GetPromptParams{Name: "coding-guide"})
+	if err != nil {
+		t.Fatal(err)
+	}
+	text := res.Messages[0].Content.(*gomcp.TextContent).Text
+	if !strings.Contains(text, "license-guide") {
+		t.Error("coding-guide should cross-reference license-guide")
+	}
+	if !strings.Contains(text, "iaf://org/license-policy") {
+		t.Error("coding-guide should reference iaf://org/license-policy")
 	}
 }

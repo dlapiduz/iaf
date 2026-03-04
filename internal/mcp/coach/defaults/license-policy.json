@@ -1,0 +1,20 @@
+{
+  "approvedSpdxIds": [
+    "MIT",
+    "Apache-2.0",
+    "BSD-2-Clause",
+    "BSD-3-Clause",
+    "ISC"
+  ],
+  "prohibitedSpdxIds": [
+    "GPL-3.0-only",
+    "GPL-3.0-or-later",
+    "AGPL-3.0-only",
+    "AGPL-3.0-or-later"
+  ],
+  "notes": [
+    "LGPL permitted for dynamic linking only — consult your legal team before bundling LGPL code statically.",
+    "Unknown or unlicensed dependencies must not be added without explicit operator approval.",
+    "SSPL and BUSL licenses are NOT approved — they are source-available, not open source."
+  ]
+}
