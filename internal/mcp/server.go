@@ -55,7 +55,7 @@ KEY DETAILS:
 - Default port is 8080 — your app must listen on this port
 - Your app will be available at http://<app-name>.<base-domain> once Running
 - Each session gets its own isolated Kubernetes namespace
-- Use app_status to monitor builds (typically ~2 minutes)
+- Use app_status to monitor builds — WAIT 30 seconds between each poll during Building, 15 seconds during Deploying. The response includes a "pollIntervalSeconds" field — always respect it. Builds typically take ~2 minutes; do not poll faster than the hint.
 - Use app_logs with build_logs=true to debug build failures
 
 CODING STANDARDS:

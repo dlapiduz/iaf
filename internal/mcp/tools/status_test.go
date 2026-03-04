@@ -115,6 +115,91 @@ func TestAppStatus_TraceExploreURL_Integration(t *testing.T) {
 	}
 }
 
+func TestAppStatus_PollIntervalSeconds(t *testing.T) {
+	ctx := context.Background()
+
+	scheme := runtime.NewScheme()
+	_ = iafv1alpha1.AddToScheme(scheme)
+	_ = corev1.AddToScheme(scheme)
+	k8sClient := fake.NewClientBuilder().WithScheme(scheme).
+		WithStatusSubresource(&iafv1alpha1.Application{}).
+		Build()
+
+	store, _ := sourcestore.New(t.TempDir(), "http://localhost:8080", slog.Default())
+	sessions, _ := auth.NewSessionStore(filepath.Join(t.TempDir(), "sessions.json"))
+	deps := &tools.Dependencies{Client: k8sClient, Store: store, BaseDomain: "test.example.com", Sessions: sessions}
+
+	server := gomcp.NewServer(&gomcp.Implementation{Name: "test", Version: "0.0.1"}, nil)
+	tools.RegisterRegisterTool(server, deps)
+	tools.RegisterAppStatus(server, deps)
+
+	st, ct := gomcp.NewInMemoryTransports()
+	_ = func() { server.Connect(ctx, st, nil) }
+	if _, err := server.Connect(ctx, st, nil); err != nil {
+		t.Fatal(err)
+	}
+	mcpClient := gomcp.NewClient(&gomcp.Implementation{Name: "test-client", Version: "0.0.1"}, nil)
+	cs, err := mcpClient.Connect(ctx, ct, nil)
+	if err != nil {
+		t.Fatal(err)
+	}
+	t.Cleanup(func() { cs.Close() })
+
+	regRes, _ := cs.CallTool(ctx, &gomcp.CallToolParams{Name: "register", Arguments: map[string]any{"name": "test"}})
+	var reg map[string]any
+	_ = json.Unmarshal([]byte(regRes.Content[0].(*gomcp.TextContent).Text), &reg)
+	sid := reg["session_id"].(string)
+	namespace := reg["namespace"].(string)
+
+	cases := []struct {
+		phase           iafv1alpha1.ApplicationPhase
+		wantPollSeconds float64
+		wantHint        bool
+	}{
+		{iafv1alpha1.ApplicationPhaseBuilding, 30, true},
+		{iafv1alpha1.ApplicationPhaseDeploying, 15, true},
+		{iafv1alpha1.ApplicationPhaseRunning, 0, false},
+		{iafv1alpha1.ApplicationPhaseFailed, 0, false},
+	}
+
+	for _, tc := range cases {
+		t.Run(string(tc.phase), func(t *testing.T) {
+			app := &iafv1alpha1.Application{
+				ObjectMeta: metav1.ObjectMeta{Name: "poll-test", Namespace: namespace},
+				Spec:       iafv1alpha1.ApplicationSpec{Image: "nginx:latest", Port: 8080, Replicas: 1},
+			}
+			_ = k8sClient.Create(ctx, app)
+			app.Status.Phase = tc.phase
+			_ = k8sClient.Status().Update(ctx, app)
+
+			res, err := cs.CallTool(ctx, &gomcp.CallToolParams{
+				Name:      "app_status",
+				Arguments: map[string]any{"session_id": sid, "name": "poll-test"},
+			})
+			if err != nil || res.IsError {
+				t.Fatalf("app_status failed: %v", err)
+			}
+			var result map[string]any
+			_ = json.Unmarshal([]byte(res.Content[0].(*gomcp.TextContent).Text), &result)
+
+			hint, hasHint := result["pollIntervalSeconds"]
+			if tc.wantHint {
+				if !hasHint {
+					t.Errorf("phase %s: expected pollIntervalSeconds in response", tc.phase)
+				} else if hint.(float64) != tc.wantPollSeconds {
+					t.Errorf("phase %s: expected pollIntervalSeconds=%v, got %v", tc.phase, tc.wantPollSeconds, hint)
+				}
+			} else {
+				if hasHint {
+					t.Errorf("phase %s: expected no pollIntervalSeconds, got %v", tc.phase, hint)
+				}
+			}
+
+			_ = k8sClient.Delete(ctx, app)
+		})
+	}
+}
+
 func TestAppStatus_NoTraceExploreURL_WhenTempoNotConfigured(t *testing.T) {
 	ctx := context.Background()
 
