@@ -1,0 +1,424 @@
+Implement the following plan:
+
+# Plan: Developer Coach Split & Expanded Coding Guidance
+
+## Context
+
+IAF currently bundles two distinct concerns in a single MCP server:
+1. **Platform operations** — deploy, manage, and monitor apps on Kubernetes
+2. **Coding guidance** — how to write code that meets enterprise standards
+
+As IAF grows, these need to be separated so the coding coach can run portably on any platform (not just IAF/Kubernetes). The user also wants the coach to cover gaps: framework/library standards, license policy, CI/CD practices, security coding standards, and a mechanism for agents to register apps as discoverable data sources.
+
+The target architecture:
+- **Coach** = a standalone MCP server app with no K8s dependencies, deployed as an IAF workload
+- **Platform** = proxies MCP requests to the coach so agents see a single unified endpoint
+- **Coach is portable** — it can run on any platform; platform-specific config (base domain, etc.) is injected at deploy time via env vars
+
+---
+
+## Issues to Create
+
+### Issue 1 — Coach server: standalone MCP app for developer guidance
+
+**Labels:** `status: needs-architecture`
+
+**Template:**
+
+```markdown
+## Problem
+All coding guidance (prompts, resources, standards) is hardcoded into the platform binary.
+This couples infrastructure concerns with developer standards, making it impossible to run
+the coding coach on a non-IAF platform or update standards independently of the platform.
+
+## Users / Context
+Enterprise operators who want to maintain coding standards separately from platform upgrades.
+AI agents that need consistent coding guidance regardless of which deployment platform they use.
+
+## Acceptance Criteria
+- [ ] New binary `cmd/coachserver/` that starts an HTTP MCP server
+- [ ] Coach exposes all coaching prompts:
+      language-guide, coding-guide, scaffold-guide, logging-guide,
+      metrics-guide, tracing-guide (and future: license-guide, cicd-guide, security-guide)
+- [ ] Coach exposes all coaching resources:
+      iaf://org/coding-standards, iaf://org/logging-standards,
+      iaf://org/metrics-standards, iaf://org/tracing-standards,
+      iaf://languages/*, iaf://scaffold/*
+- [ ] Coach has NO dependency on the K8s client or session management
+- [ ] Coach configured via env vars: COACH_BASE_DOMAIN, COACH_ORG_STANDARDS_FILE,
+      COACH_LOGGING_STANDARDS_FILE, COACH_METRICS_STANDARDS_FILE,
+      COACH_TRACING_STANDARDS_FILE (so it knows about the platform it is running on)
+- [ ] Coach is built via `make build` alongside existing binaries
+- [ ] Existing `internal/mcp/prompts/` retains only platform-operation prompts:
+      deploy-guide, services-guide, github-guide
+- [ ] All coaching code moves to new `internal/mcp/coach/` package
+      (sub-packages: prompts/, resources/, standards/)
+- [ ] `make test` passes; existing test assertions for prompt/resource counts updated
+- [ ] Dockerfile and Helm/manifest for deploying coach as an IAF Application added
+      to `deploy/coach/`
+- [ ] `docs/architecture.md` updated to describe the two-domain structure
+
+## Security & Multi-tenancy Considerations
+The coach is stateless and read-only. No credentials, no K8s API calls, no session IDs.
+A simple API key (`COACH_API_TOKEN`) should gate the HTTP endpoint to prevent unauthenticated
+access to org standards (which may contain internal library or license policy details).
+Flag with `needs-security-review` if the standards files can contain sensitive org data.
+
+## Out of Scope
+- MCP proxying from the platform to the coach (that is Issue 2)
+- New coaching capabilities (those are Issues 3–6)
+- Multi-tenant standards (one set of standards per deployment)
+
+## Open Questions
+- Should the coach MCP server require auth (Bearer token)? Recommendation: yes, same
+  pattern as the platform `IAF_API_TOKENS` config.
+- Should the coach's HTTP transport match the platform's streamable-HTTP approach or use
+  plain request/response? Use the same transport for consistency.
+```
+
+---
+
+### Issue 2 — Platform MCP: proxy coaching requests to coach server
+
+**Labels:** `status: needs-architecture`
+**Depends on:** Issue 1
+
+```markdown
+## Problem
+After Issue 1, the coach is a separate app. But agents currently connect to a single
+platform MCP endpoint. If we require agents to connect to two MCP servers, all existing
+agent workflows break and agents need extra configuration.
+
+## Users / Context
+AI agents that should not need to know (or care) whether coaching guidance is served by
+the platform binary or a remote coach service.
+
+## Acceptance Criteria
+- [ ] New env var `IAF_COACH_URL` on the platform (e.g. `https://coach.iaf.localhost`)
+- [ ] On startup, if `IAF_COACH_URL` is set, the platform MCP server connects to the
+      coach as an MCP client
+- [ ] Platform re-registers each coaching prompt and resource from the coach, using
+      forwarding handlers that proxy calls through to the coach client
+- [ ] From the agent's perspective, all prompts and resources appear on the single
+      platform MCP endpoint — no change to tool/prompt/resource names or URIs
+- [ ] If `IAF_COACH_URL` is not set, coaching features are simply absent (graceful
+      degradation with no startup error)
+- [ ] If the coach is unreachable at startup, platform logs a warning but continues
+      serving platform tools
+- [ ] `serverInstructions` in server.go updated to explain the two domains when coach
+      is configured
+- [ ] Integration test: platform server with in-memory coach server proxies a
+      `coding-guide` prompt call end-to-end
+- [ ] `docs/architecture.md` updated with a component diagram showing the proxy flow:
+      Agent → Platform MCP → Coach MCP
+
+## Security & Multi-tenancy Considerations
+The platform-to-coach connection is internal (cluster-local). The platform should pass
+its `IAF_COACH_TOKEN` as a Bearer token when calling the coach. The coach must not be
+exposed directly to external agents without auth.
+
+## Out of Scope
+- Hot-reload of the coach proxy (restart required if coach URL changes)
+- Load balancing across multiple coach instances
+
+## Open Questions
+- Does the go-sdk support registering forwarding handlers for prompts/resources read from
+  a remote MCP client? If not, the platform must enumerate the coach's capabilities at
+  startup and register proxy closures for each. The architect should verify the SDK API.
+```
+
+---
+
+### Issue 3 — Coach: framework & library standards
+
+**Labels:** `status: needs-architecture`
+**Depends on:** Issue 1
+
+```markdown
+## Problem
+The existing `iaf://org/coding-standards` resource lists "approved libraries" as a flat
+map[string]string with no version constraints, no framework-level guidance, and no
+prohibited list. Agents cannot determine whether Spring Boot 2.x vs 3.x is acceptable,
+or whether Quarkus is prohibited in favour of Spring.
+
+## Users / Context
+AI agents writing Java, Ruby, Python, Go, or Node.js code for enterprise environments
+where specific frameworks are mandated (e.g. Spring Boot for Java, Rails for Ruby).
+
+## Acceptance Criteria
+- [ ] `internal/orgstandards` `PerLanguageStandards` struct extended:
+      - `ApprovedFrameworks []FrameworkStandard` (name, minVersion, notes)
+      - `ProhibitedFrameworks []FrameworkStandard` (name, reason)
+      - `ApprovedLibraries` changed from `map[string]string` to
+        `[]LibraryStandard` (name, minVersion, notes, category)
+      - `ProhibitedLibraries []LibraryStandard` (name, reason)
+- [ ] Embedded default standards JSON updated with sensible defaults per language:
+      - Java: Spring Boot >= 3.2 (approved), Quarkus (approved with note), Spring MVC direct (prohibited)
+      - Ruby: Rails >= 7.1 (approved), Sinatra (approved for APIs)
+      - Python: FastAPI >= 0.100 (approved), Flask (approved), Django (approved)
+      - Node.js: Express >= 4.x (approved), Fastify (approved), no framework (approved for simple cases)
+      - Go: stdlib (approved), Gin (approved), no framework required
+- [ ] Operator YAML/JSON config schema documented; migration note for old `map` format
+- [ ] `coding-guide` prompt renders approved and prohibited frameworks in separate sections
+- [ ] `iaf://org/coding-standards` JSON exposes the full structured list
+- [ ] `make test` passes
+
+## Security & Multi-tenancy Considerations
+Version strings must be validated (reject shell metacharacters) when the operator
+config file is loaded, since these strings may appear in agent-generated build files.
+
+## Out of Scope
+- Config templates (pom.xml snippets, Gemfile templates) — those belong in the scaffold system
+- Enforcing framework choice at build time
+
+## Open Questions
+- Should the architect use a semver library for version comparison, or keep it as a
+  display-only string? Recommendation: display-only for now; enforcement is a future issue.
+```
+
+---
+
+### Issue 4 — Coach: open source license policy
+
+**Labels:** `status: needs-architecture`
+**Depends on:** Issue 1
+
+```markdown
+## Problem
+Agents have no guidance on which open source licenses are acceptable in enterprise
+deployments. An agent might add a GPL-licensed dependency without knowing it violates
+the organization's IP policy.
+
+## Users / Context
+AI agents adding dependencies to enterprise applications where copyleft or viral licenses
+may be prohibited.
+
+## Acceptance Criteria
+- [ ] New `LicensePolicy` field in `OrgStandards`:
+      - `ApprovedSpdxIds []string` (SPDX identifiers, e.g. "MIT", "Apache-2.0")
+      - `ProhibitedSpdxIds []string` (e.g. "GPL-3.0-only", "AGPL-3.0-only")
+      - `Notes []string` (e.g. "LGPL permitted for dynamic linking only")
+- [ ] New `iaf://org/license-policy` resource in `internal/mcp/coach/resources/license_policy.go`
+      using file-override pattern (embedded default + `COACH_LICENSE_POLICY_FILE` env var)
+- [ ] Embedded default: MIT, Apache-2.0, BSD-2-Clause, BSD-3-Clause, ISC approved;
+      GPL-3.0-only, AGPL-3.0-only prohibited by default
+- [ ] New `license-guide` prompt: explains SPDX identifiers, lists approved/prohibited,
+      tells agents to check a dependency's license before adding it to a manifest, and
+      explains what to do when a license is unknown or ambiguous
+- [ ] `coding-guide` cross-references `license-guide`
+- [ ] `make test` passes; `TestListPrompts` and `TestListResources` counts updated
+
+## Security & Multi-tenancy Considerations
+License policy is read-only and operator-configured. No agent can modify it.
+This standard is advisory — IAF does not block builds based on license.
+Add a note in the issue that build-time enforcement is a future work item.
+
+## Out of Scope
+- Automated license scanning at build time
+- License compatibility matrix (A can use B, B cannot use C)
+```
+
+---
+
+### Issue 5 — Coach: CI/CD standards and pipeline guidance
+
+**Labels:** `status: needs-architecture`
+**Depends on:** Issue 1
+
+```markdown
+## Problem
+The existing `github-guide` prompt includes a hardcoded CI workflow template filename
+and a branching strategy, but there is no operator-configurable CI/CD policy covering
+required pipeline stages, environment promotion, or deployment strategies.
+
+## Users / Context
+AI agents generating CI pipelines (GitHub Actions, GitLab CI, etc.) for enterprise
+deployments where specific pipeline stages are mandated.
+
+## Acceptance Criteria
+- [ ] `iaf://org/github-standards` made operator-configurable via file override
+      (move hardcoded defaults to `defaults/github-standards.json`; add
+      `COACH_GITHUB_STANDARDS_FILE` env var following existing pattern)
+- [ ] New `iaf://org/cicd-standards` resource:
+      - `requiredStages []string` (e.g. lint, unit-test, security-scan, build, deploy-staging, smoke-test, deploy-prod)
+      - `approvalRequired []string` (stages that need a manual gate)
+      - `environments []EnvironmentDef` (name, promotion rules)
+      - `deploymentStrategy string` (rolling/blue-green/canary — maps to IAF Application replica strategy)
+- [ ] New `cicd-guide` prompt: explains required pipeline stages, environment promotion,
+      links to `iaf://org/cicd-standards` and `iaf://org/github-standards`
+- [ ] `github-guide` prompt updated to reference `cicd-guide` for the CI/CD subset
+- [ ] Conditional registration preserved — github features only when GitHub is configured
+- [ ] `make test` passes
+
+## Security & Multi-tenancy Considerations
+Same as other standards resources — read-only, operator-configured, file-override with
+path traversal protection.
+
+## Out of Scope
+- Executing CI pipelines from within IAF
+- Support for non-GitHub VCS systems (scope to GitHub for now; generalize in a future issue)
+```
+
+---
+
+### Issue 6 — Coach: security coding practices
+
+**Labels:** `status: needs-architecture`, `needs-security-review`
+**Depends on:** Issue 1
+
+```markdown
+## Problem
+Agents have no structured guidance on secure coding practices. Without explicit standards,
+agents may introduce SQL injection, hardcoded secrets, or insecure dependencies into
+enterprise codebases.
+
+## Users / Context
+AI agents writing application code that will handle user input, external data, or
+sensitive information in enterprise environments.
+
+## Acceptance Criteria
+- [ ] New `iaf://org/security-standards` resource in
+      `internal/mcp/coach/resources/security_standards.go`
+      (file-override pattern; `COACH_SECURITY_STANDARDS_FILE` env var)
+- [ ] Embedded default `defaults/security-standards.json` covering:
+      - Input validation: parameterized queries, no dynamic code eval, content-type validation
+      - Secret handling: env-var-only credentials, never log/commit secrets
+      - Output encoding: HTML escaping, JSON serialization rules
+      - Dependency hygiene: pin exact versions, enable automated scanning
+      - OWASP Top 10 cross-references (brief with links)
+- [ ] New `security-guide` prompt: accepts optional `language` argument (same pattern as
+      `logging-guide`); provides language-specific examples for SQL injection prevention
+      in Go (database/sql), Python (SQLAlchemy), Java (JPA), Ruby (ActiveRecord),
+      Node.js (pg/sequelize)
+- [ ] `coding-guide` and `deploy-guide` cross-reference `security-guide`
+- [ ] `make test` passes; prompt/resource count assertions updated
+
+## Security & Multi-tenancy Considerations
+This issue IS a security control. Invest in the per-language SQL injection and secret
+handling examples — these are the highest-risk vectors for agent-generated code.
+The resource is read-only and operator-configurable; no agent can weaken the standards.
+
+## Out of Scope
+- Static analysis tooling integration
+- SAST/DAST at build time (future work)
+```
+
+---
+
+### Issue 7 — Platform: agent-proposed data sources
+
+**Labels:** `status: needs-architecture`, `needs-security-review`
+
+```markdown
+## Problem
+Agents can discover and attach existing DataSources, but they have no way to register
+new ones. When an agent builds a data-serving app (e.g. a REST API that exposes a dataset),
+there is no mechanism to add that app to the cluster-wide data catalog so other agents
+and apps can discover and connect to it.
+
+## Users / Context
+AI agents building multi-service architectures where service A produces data that service B
+should consume. Operators who want an approval gate before any new data source is
+added to the enterprise catalog.
+
+## Acceptance Criteria
+- [ ] New namespaced CRD `ProposedDataSource` in `api/v1alpha1/proposeddatasource_types.go`:
+      - spec: kind (from allowlist), description, schema, tags, appName (optional IAF app),
+        rationale (why this source is needed), requestedBy (set by platform from session namespace)
+      - status: phase (Pending/Approved/Rejected), rejectionReason, promotedDataSourceName
+      - `requestedBy` must be set by the tool from `deps.ResolveNamespace(input.SessionID)`,
+        never from agent input
+- [ ] `kind` validated against allowlist: postgres, mysql, s3, http-api, kafka
+- [ ] New tool `propose_data_source` in `internal/mcp/tools/data_sources.go`:
+      - Input: session_id, kind, description, schema (optional), tags (optional),
+        app_name (optional — links to an existing IAF Application), rationale
+      - Creates `ProposedDataSource` CR in session namespace
+      - If `app_name` is provided, validates the Application exists in session namespace
+      - Returns proposal name and message that operator approval is required
+- [ ] New tool `get_data_source_proposal`:
+      - Input: session_id, proposal_name
+      - Returns phase, rejection_reason (if rejected), promoted_data_source_name (if approved)
+      - Agents poll this (same pattern as `service_status`)
+- [ ] RBAC in `config/rbac/role.yaml`: `iaf.io/proposeddatasources` verbs:
+      create, get, list, watch (no update/delete by agents)
+- [ ] Controller (or operator kubectl workflow) can update `proposeddatasources/status`;
+      verbs: update, patch on status subresource
+- [ ] `iaf://catalog/data-sources` resource updated to also show count of pending proposals
+      (metadata only — no proposal content)
+- [ ] `docs/operator-guide.md` new section: "Reviewing and approving proposed data sources"
+      — how operator promotes a ProposedDataSource to a DataSource
+- [ ] `make test` passes; tool tests cover: successful proposal, invalid kind rejection,
+      idempotency check (same app+kind already proposed)
+
+## Security & Multi-tenancy Considerations
+- Agents MUST NOT be able to set `secretRef` — the ProposedDataSource spec has no
+  secretRef field at all; credentials are always supplied by the operator when creating
+  the DataSource
+- `requestedBy` is set server-side from the resolved session namespace, never from
+  agent input — prevents cross-tenant impersonation
+- ProposedDataSources are namespace-scoped; one agent cannot see another's proposals
+- Operators should be warned in docs that they must independently vet credentials before
+  promoting a proposal to a DataSource
+- Flag: `needs-security-review`
+
+## Out of Scope
+- Automatic promotion of proposals without operator review
+- Agents deleting their own proposals (proposals are immutable once submitted)
+- UI for proposal review (future dashboard work)
+
+## Open Questions
+- Should the platform auto-populate `appName` endpoint URL when the IAF app is Running,
+  to help the operator know what URL to put in the DataSource? Recommendation: yes —
+  include `appURL` in the ProposedDataSource status once the referenced app reaches Running.
+```
+
+---
+
+## Issue Priority & Dependencies
+
+```
+Issue 1 (coach server binary + code split)  ← prerequisite for 2–6
+    ├── Issue 2 (platform proxy to coach)
+    ├── Issue 3 (framework standards)       ┐
+    ├── Issue 4 (license policy)            │ all parallel after Issue 1
+    ├── Issue 5 (CI/CD standards)           │
+    └── Issue 6 (security standards)        ┘
+
+Issue 7 (proposed data sources)  ← independent, no blocking deps
+```
+
+Issues 3–6 can be worked concurrently by different developers once Issue 1 lands.
+Issue 7 can start immediately.
+
+---
+
+## Critical Files Affected
+
+| File | Affected by |
+|------|-------------|
+| `internal/mcp/server.go` | Issues 1, 2 — composition root; add coach proxy |
+| `internal/mcp/tools/deps.go` | Issues 1, 7 — new fields for coach URL, proposal tools |
+| `internal/orgstandards/loader.go` | Issues 3, 4 — extend OrgStandards struct |
+| `api/v1alpha1/datasource_types.go` | Issue 7 — reference for ProposedDataSource design |
+| `internal/mcp/resources/logging_standards.go` | Issues 4, 5, 6 — pattern to replicate |
+| `config/rbac/role.yaml` | Issue 7 — new RBAC verbs for ProposedDataSource |
+| `internal/config/config.go` | Issues 2, 4, 5, 6 — new env vars |
+| `docs/architecture.md` | Issues 1, 2 |
+| `docs/operator-guide.md` | Issue 7 |
+
+---
+
+## Verification
+
+After all issues are implemented:
+1. `make build` — all three platform binaries + new coachserver binary compile
+2. `make test` — all tests pass
+3. Deploy coach locally: `make deploy-local` deploys coach as an IAF Application
+4. Set `IAF_COACH_URL` → platform MCP proxies `coding-guide` prompt call to coach
+5. `gh issue list --label "status: needs-spec"` — should be empty after issues are created
+6. Run the MCP client against the platform endpoint; verify `language-guide`, `license-guide`,
+   `security-guide` prompts all resolve (proxied from coach)
+7. Call `propose_data_source` tool; verify `ProposedDataSource` CR created in session namespace
+
+
+If you need specific details from before exiting plan mode (like exact code snippets, error messages, or content you generated), read the full transcript at: /Users/diego/.claude/projects/-Users-diego-src-iaf3/fffb93d3-efc4-4225-8699-a16e37b4869d.jsonl

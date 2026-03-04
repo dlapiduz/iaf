@@ -1,0 +1,26 @@
+{
+  "cli_version": "0.4.8",
+  "checkpoint_id": "4df5955abcf1",
+  "strategy": "manual-commit",
+  "branch": "feat/issue-6-session-lifecycle",
+  "checkpoints_count": 1,
+  "files_touched": [
+    "config/crd/bases/iaf.io_applications.yaml"
+  ],
+  "sessions": [
+    {
+      "metadata": "/4d/f5955abcf1/0/metadata.json",
+      "transcript": "/4d/f5955abcf1/0/full.jsonl",
+      "context": "/4d/f5955abcf1/0/context.md",
+      "content_hash": "/4d/f5955abcf1/0/content_hash.txt",
+      "prompt": "/4d/f5955abcf1/0/prompt.txt"
+    }
+  ],
+  "token_usage": {
+    "input_tokens": 9,
+    "cache_creation_tokens": 16717,
+    "cache_read_tokens": 296232,
+    "output_tokens": 6033,
+    "api_call_count": 7
+  }
+}

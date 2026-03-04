@@ -1,0 +1,30 @@
+{
+  "cli_version": "0.4.8",
+  "checkpoint_id": "4df5955abcf1",
+  "session_id": "1e39e08f-aaae-4fa5-bd5e-774b8003812a",
+  "strategy": "manual-commit",
+  "created_at": "2026-03-04T14:01:36.98479Z",
+  "branch": "feat/issue-6-session-lifecycle",
+  "checkpoints_count": 1,
+  "files_touched": [
+    "config/crd/bases/iaf.io_applications.yaml"
+  ],
+  "agent": "Claude Code",
+  "turn_id": "5bd7ecb3db66",
+  "token_usage": {
+    "input_tokens": 9,
+    "cache_creation_tokens": 16717,
+    "cache_read_tokens": 296232,
+    "output_tokens": 6033,
+    "api_call_count": 7
+  },
+  "initial_attribution": {
+    "calculated_at": "2026-03-04T14:01:36.898728Z",
+    "agent_lines": 23,
+    "human_added": 2541,
+    "human_modified": 0,
+    "human_removed": 0,
+    "total_committed": 2564,
+    "agent_percentage": 0.8970358814352575
+  }
+}
