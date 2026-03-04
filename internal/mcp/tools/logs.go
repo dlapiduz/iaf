@@ -7,6 +7,7 @@ import (
 	"io"
 
 	iafv1alpha1 "github.com/dlapiduz/iaf/api/v1alpha1"
+	k8shelper "github.com/dlapiduz/iaf/internal/k8s"
 	"github.com/dlapiduz/iaf/internal/validation"
 	gomcp "github.com/modelcontextprotocol/go-sdk/mcp"
 	corev1 "k8s.io/api/core/v1"
@@ -21,6 +22,7 @@ type AppLogsInput struct {
 	Name      string `json:"name" jsonschema:"required - application name to get logs for"`
 	Lines     int64  `json:"lines,omitempty" jsonschema:"number of log lines to return (default: 100)"`
 	BuildLogs bool   `json:"build_logs,omitempty" jsonschema:"set to true to get build logs instead of application runtime logs"`
+	PodName   string `json:"pod_name,omitempty" jsonschema:"optional - specific pod name to get logs from; if omitted, uses most recently started pod"`
 }
 
 // RegisterAppLogs registers the app_logs tool. It needs both the controller-runtime
@@ -28,7 +30,7 @@ type AppLogsInput struct {
 func RegisterAppLogs(server *gomcp.Server, deps *Dependencies) {
 	gomcp.AddTool(server, &gomcp.Tool{
 		Name:        "app_logs",
-		Description: "Get logs from an application's running pods, or build logs if build_logs=true. Requires session_id from the register tool and the application name. Use build_logs=true to debug build failures. Default: last 100 lines.",
+		Description: "Get logs from an application's running pods, or build logs if build_logs=true. Requires session_id from the register tool and the application name. Use build_logs=true to debug build failures. Default: last 100 lines. Use pod_name to fetch logs from a specific pod; omit to get logs from the most recently started pod.",
 	}, func(ctx context.Context, req *gomcp.CallToolRequest, input AppLogsInput) (*gomcp.CallToolResult, any, error) {
 		namespace, err := deps.ResolveNamespace(input.SessionID)
 		if err != nil {
@@ -77,7 +79,7 @@ func RegisterAppLogs(server *gomcp.Server, deps *Dependencies) {
 func RegisterAppLogsWithClientset(server *gomcp.Server, deps *Dependencies, clientset kubernetes.Interface) {
 	gomcp.AddTool(server, &gomcp.Tool{
 		Name:        "app_logs",
-		Description: "Get logs from an application's running pods, or build logs if build_logs=true. Requires session_id from the register tool and the application name. Use build_logs=true to debug build failures. Default: last 100 lines.",
+		Description: "Get logs from an application's running pods, or build logs if build_logs=true. Requires session_id from the register tool and the application name. Use build_logs=true to debug build failures. Default: last 100 lines. Use pod_name to fetch logs from a specific pod; omit to get logs from the most recently started pod.",
 	}, func(ctx context.Context, req *gomcp.CallToolRequest, input AppLogsInput) (*gomcp.CallToolResult, any, error) {
 		namespace, err := deps.ResolveNamespace(input.SessionID)
 		if err != nil {
@@ -120,9 +122,10 @@ func RegisterAppLogsWithClientset(server *gomcp.Server, deps *Dependencies, clie
 
 		if len(podList.Items) == 0 {
 			result := map[string]any{
-				"name":  input.Name,
-				"logs":  "No pods found",
-				"phase": string(app.Status.Phase),
+				"name":          input.Name,
+				"logs":          "No pods found",
+				"availablePods": []string{},
+				"phase":         string(app.Status.Phase),
 			}
 			text, _ := json.MarshalIndent(result, "", "  ")
 			return &gomcp.CallToolResult{
@@ -130,7 +133,18 @@ func RegisterAppLogsWithClientset(server *gomcp.Server, deps *Dependencies, clie
 			}, nil, nil
 		}
 
-		pod := podList.Items[len(podList.Items)-1]
+		availablePods := k8shelper.PodNames(podList.Items, k8shelper.MaxAvailablePods)
+
+		var pod *corev1.Pod
+		if input.PodName != "" {
+			pod, err = k8shelper.FindPodByName(podList.Items, input.PodName, labelKey, input.Name)
+			if err != nil {
+				return nil, nil, err
+			}
+		} else {
+			pod = k8shelper.SelectMostRecentPod(podList.Items)
+		}
+
 		opts := &corev1.PodLogOptions{
 			TailLines: &lines,
 		}
@@ -150,10 +164,11 @@ func RegisterAppLogsWithClientset(server *gomcp.Server, deps *Dependencies, clie
 		}
 
 		result := map[string]any{
-			"name":    input.Name,
-			"logs":    string(data),
-			"podName": pod.Name,
-			"phase":   string(app.Status.Phase),
+			"name":          input.Name,
+			"logs":          string(data),
+			"podName":       pod.Name,
+			"availablePods": availablePods,
+			"phase":         string(app.Status.Phase),
 		}
 
 		text, _ := json.MarshalIndent(result, "", "  ")
