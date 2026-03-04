@@ -122,3 +122,9 @@ func (s *Store) Delete(namespace, appName string) error {
 	appDir := filepath.Join(s.dir, namespace, appName)
 	return os.RemoveAll(appDir)
 }
+
+// DeleteNamespace removes all stored source for an entire namespace.
+func (s *Store) DeleteNamespace(namespace string) error {
+	nsDir := filepath.Join(s.dir, namespace)
+	return os.RemoveAll(nsDir)
+}

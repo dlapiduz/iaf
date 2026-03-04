@@ -12,6 +12,7 @@ import (
 	"github.com/dlapiduz/iaf/internal/k8s"
 	iafmcp "github.com/dlapiduz/iaf/internal/mcp"
 	"github.com/dlapiduz/iaf/internal/orgstandards"
+	"github.com/dlapiduz/iaf/internal/sessiongc"
 	"github.com/dlapiduz/iaf/internal/sourcestore"
 	gomcp "github.com/modelcontextprotocol/go-sdk/mcp"
 	"k8s.io/client-go/kubernetes"
@@ -52,6 +53,13 @@ func main() {
 	orgLoader := orgstandards.New(cfg.OrgStandardsFile, logger)
 	go orgLoader.Start(ctx)
 
+	// Start session GC if TTL and GC interval are configured.
+	if cfg.SessionTTL > 0 && cfg.SessionGCInterval > 0 {
+		cleaner := sessiongc.New(k8sClient, store, sessions, logger)
+		go cleaner.Start(ctx, cfg.SessionGCInterval)
+		logger.Info("session GC started", "ttl", cfg.SessionTTL, "interval", cfg.SessionGCInterval)
+	}
+
 	var ghClient iafgithub.Client
 	if cfg.GitHubToken != "" && cfg.GitHubOrg != "" {
 		ghClient = iafgithub.NewHTTPClient(cfg.GitHubToken)
@@ -73,7 +81,7 @@ func main() {
 		}
 	}
 
-	server := iafmcp.NewServer(k8sClient, sessions, store, cfg.BaseDomain, orgLoader, ghClient, cfg.GitHubOrg, cfg.GitHubToken, cfg.TempoURL, clientset)
+	server := iafmcp.NewServer(k8sClient, sessions, store, cfg.BaseDomain, orgLoader, ghClient, cfg.GitHubOrg, cfg.GitHubToken, cfg.TempoURL, cfg.SessionTTL, clientset)
 
 	logger.Info("starting MCP server", "transport", cfg.MCPTransport)
 

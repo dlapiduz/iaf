@@ -18,7 +18,7 @@ func RegisterRegisterTool(server *gomcp.Server, deps *Dependencies) {
 		Name:        "register",
 		Description: "CALL THIS FIRST. Creates a new session and returns a session_id that is required by every other tool. You only need to call this once — store the session_id and pass it to all subsequent tool calls. Optionally provide a friendly name for your workspace.",
 	}, func(ctx context.Context, req *gomcp.CallToolRequest, input RegisterInput) (*gomcp.CallToolResult, any, error) {
-		sess, err := deps.Sessions.Register(input.Name)
+		sess, err := deps.Sessions.Register(input.Name, deps.SessionTTL)
 		if err != nil {
 			return nil, nil, fmt.Errorf("registering session: %w", err)
 		}
@@ -31,6 +31,11 @@ func RegisterRegisterTool(server *gomcp.Server, deps *Dependencies) {
 			"session_id": sess.ID,
 			"namespace":  sess.Namespace,
 			"message":    "Session created. IMPORTANT: Store this session_id and include it in ALL subsequent tool calls as the session_id parameter.",
+		}
+
+		if deps.SessionTTL > 0 {
+			result["ttl_seconds"] = int64(deps.SessionTTL.Seconds())
+			result["expires_after"] = deps.SessionTTL.String()
 		}
 
 		text, _ := json.MarshalIndent(result, "", "  ")

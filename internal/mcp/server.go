@@ -1,6 +1,8 @@
 package mcp
 
 import (
+	"time"
+
 	"github.com/dlapiduz/iaf/internal/auth"
 	iafgithub "github.com/dlapiduz/iaf/internal/github"
 	"github.com/dlapiduz/iaf/internal/mcp/prompts"
@@ -28,6 +30,7 @@ QUICK START:
 
 AVAILABLE TOOLS (all require session_id except register):
 - register: Get a session_id (CALL THIS FIRST)
+- unregister: Clean up session and all its resources when you are done (irreversible)
 - push_code: Upload source code files to build and deploy (provide files as {"path": "content"} map)
 - deploy_app: Deploy from a container image or git repo (use git_credential for private repos)
 - list_apps: See all your deployed apps
@@ -63,7 +66,8 @@ CODING STANDARDS:
 // If loader is non-nil, org standards are served from that loader; otherwise platform defaults are used.
 // ghClient may be nil — GitHub tools are omitted when it is not set.
 // If clientset is non-nil, app_logs will stream real logs from pods.
-func NewServer(k8sClient client.Client, sessions *auth.SessionStore, store *sourcestore.Store, baseDomain string, loader *orgstandards.Loader, ghClient iafgithub.Client, ghOrg, ghToken string, tempoURL string, clientset ...kubernetes.Interface) *gomcp.Server {
+// sessionTTL sets the idle TTL for new sessions (0 = no expiry).
+func NewServer(k8sClient client.Client, sessions *auth.SessionStore, store *sourcestore.Store, baseDomain string, loader *orgstandards.Loader, ghClient iafgithub.Client, ghOrg, ghToken string, tempoURL string, sessionTTL time.Duration, clientset ...kubernetes.Interface) *gomcp.Server {
 	server := gomcp.NewServer(
 		&gomcp.Implementation{
 			Name:    "iaf",
@@ -84,9 +88,11 @@ func NewServer(k8sClient client.Client, sessions *auth.SessionStore, store *sour
 		GitHubOrg:    ghOrg,
 		GitHubToken:  ghToken,
 		TempoURL:     tempoURL,
+		SessionTTL:   sessionTTL,
 	}
 
 	tools.RegisterRegisterTool(server, deps)
+	tools.RegisterUnregisterTool(server, deps)
 	tools.RegisterDeployApp(server, deps)
 	tools.RegisterPushCode(server, deps)
 	tools.RegisterAddGitCredential(server, deps)
