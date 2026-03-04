@@ -1,0 +1,44 @@
+{
+  "cli_version": "0.4.8",
+  "checkpoint_id": "605b34a1ab44",
+  "strategy": "manual-commit",
+  "branch": "feat/issue-61-62-cicd-security-standards",
+  "checkpoints_count": 2,
+  "files_touched": [
+    "cmd/coachserver/main.go",
+    "internal/mcp/coach/cicd_guide.go",
+    "internal/mcp/coach/cicd_standards.go",
+    "internal/mcp/coach/coach_test.go",
+    "internal/mcp/coach/coding_guide.go",
+    "internal/mcp/coach/defaults/cicd-standards.json",
+    "internal/mcp/coach/defaults/github-standards.json",
+    "internal/mcp/coach/defaults/security-standards.json",
+    "internal/mcp/coach/deps.go",
+    "internal/mcp/coach/github_standards.go",
+    "internal/mcp/coach/security_guide.go",
+    "internal/mcp/coach/security_standards.go",
+    "internal/mcp/coach/server.go",
+    "internal/mcp/prompts/deploy_guide.go",
+    "internal/mcp/prompts/github_guide.go",
+    "internal/mcp/resources/github_standards.go",
+    "internal/mcp/resources/resources_test.go",
+    "internal/mcp/server.go",
+    "internal/mcp/server_test.go"
+  ],
+  "sessions": [
+    {
+      "metadata": "/60/5b34a1ab44/0/metadata.json",
+      "transcript": "/60/5b34a1ab44/0/full.jsonl",
+      "context": "/60/5b34a1ab44/0/context.md",
+      "content_hash": "/60/5b34a1ab44/0/content_hash.txt",
+      "prompt": "/60/5b34a1ab44/0/prompt.txt"
+    }
+  ],
+  "token_usage": {
+    "input_tokens": 1104,
+    "cache_creation_tokens": 480519,
+    "cache_read_tokens": 24983173,
+    "output_tokens": 89593,
+    "api_call_count": 232
+  }
+}
