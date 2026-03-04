@@ -3,7 +3,7 @@
   "checkpoint_id": "4df5955abcf1",
   "strategy": "manual-commit",
   "branch": "feat/issue-6-session-lifecycle",
-  "checkpoints_count": 3,
+  "checkpoints_count": 5,
   "files_touched": [
     "cmd/apiserver/main.go",
     "config/crd/bases/iaf.io_applications.yaml",
@@ -39,13 +39,20 @@
       "context": "/4d/f5955abcf1/2/context.md",
       "content_hash": "/4d/f5955abcf1/2/content_hash.txt",
       "prompt": "/4d/f5955abcf1/2/prompt.txt"
+    },
+    {
+      "metadata": "/4d/f5955abcf1/3/metadata.json",
+      "transcript": "/4d/f5955abcf1/3/full.jsonl",
+      "context": "/4d/f5955abcf1/3/context.md",
+      "content_hash": "/4d/f5955abcf1/3/content_hash.txt",
+      "prompt": "/4d/f5955abcf1/3/prompt.txt"
     }
   ],
   "token_usage": {
-    "input_tokens": 71,
-    "cache_creation_tokens": 294007,
-    "cache_read_tokens": 7311722,
-    "output_tokens": 27766,
-    "api_call_count": 66
+    "input_tokens": 80,
+    "cache_creation_tokens": 307380,
+    "cache_read_tokens": 7500242,
+    "output_tokens": 28654,
+    "api_call_count": 71
   }
 }
