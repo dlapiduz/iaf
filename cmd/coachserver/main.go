@@ -2,8 +2,12 @@ package main
 
 import (
 	"context"
+	"crypto/subtle"
+	"fmt"
 	"log/slog"
+	"net/http"
 	"os"
+	"strings"
 
 	"github.com/dlapiduz/iaf/internal/mcp/coach"
 	"github.com/dlapiduz/iaf/internal/orgstandards"
@@ -16,8 +20,13 @@ func main() {
 
 	token := os.Getenv("COACH_API_TOKEN")
 	if token == "" {
-		logger.Error("COACH_API_TOKEN is required — refusing to start without auth (an unauthenticated coach leaks org standards)")
+		logger.Error("COACH_API_TOKEN is required — refusing to start without auth")
 		os.Exit(1)
+	}
+
+	port := os.Getenv("COACH_PORT")
+	if port == "" {
+		port = "8082"
 	}
 
 	deps := &coach.Dependencies{
@@ -38,14 +47,30 @@ func main() {
 
 	server := coach.NewServer(deps)
 
-	logger.Info("starting coach MCP server", "transport", "stdio")
+	mcpHandler := gomcp.NewStreamableHTTPHandler(func(r *http.Request) *gomcp.Server {
+		return server
+	}, &gomcp.StreamableHTTPOptions{Stateless: true})
 
-	transport := &gomcp.StdioTransport{}
-	if _, err := server.Connect(ctx, transport, nil); err != nil {
-		logger.Error("failed to connect coach MCP server", "error", err)
+	mux := http.NewServeMux()
+	mux.Handle("/mcp", bearerAuth(token, mcpHandler))
+
+	addr := fmt.Sprintf(":%s", port)
+	logger.Info("starting coach MCP server", "addr", addr)
+	if err := http.ListenAndServe(addr, mux); err != nil {
+		logger.Error("coach server exited", "error", err)
 		os.Exit(1)
 	}
+}
 
-	// Block until stdin is closed
-	select {}
+// bearerAuth wraps an http.Handler with Bearer token authentication.
+func bearerAuth(token string, next http.Handler) http.Handler {
+	return http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		auth := r.Header.Get("Authorization")
+		incoming := strings.TrimPrefix(auth, "Bearer ")
+		if incoming == auth || subtle.ConstantTimeCompare([]byte(incoming), []byte(token)) != 1 {
+			http.Error(w, `{"error":"unauthorized"}`, http.StatusUnauthorized)
+			return
+		}
+		next.ServeHTTP(w, r)
+	})
 }

@@ -5,12 +5,41 @@ import (
 	"net/http"
 	"net/http/httptest"
 	"testing"
+	"time"
 
 	iafmcp "github.com/dlapiduz/iaf/internal/mcp"
 	"github.com/dlapiduz/iaf/internal/mcp/coach"
 	"github.com/dlapiduz/iaf/internal/orgstandards"
 	gomcp "github.com/modelcontextprotocol/go-sdk/mcp"
 )
+
+// waitForCount polls cs.ListPrompts until at least minCount prompts appear or
+// the deadline is exceeded. Used to account for the background registration goroutine.
+func waitForPromptCount(t *testing.T, cs *gomcp.ClientSession, minCount int) {
+	t.Helper()
+	deadline := time.Now().Add(3 * time.Second)
+	for time.Now().Before(deadline) {
+		res, err := cs.ListPrompts(context.Background(), nil)
+		if err == nil && len(res.Prompts) >= minCount {
+			return
+		}
+		time.Sleep(50 * time.Millisecond)
+	}
+	t.Fatalf("timed out waiting for %d prompts", minCount)
+}
+
+func waitForResourceCount(t *testing.T, cs *gomcp.ClientSession, minCount int) {
+	t.Helper()
+	deadline := time.Now().Add(3 * time.Second)
+	for time.Now().Before(deadline) {
+		res, err := cs.ListResources(context.Background(), nil)
+		if err == nil && len(res.Resources) >= minCount {
+			return
+		}
+		time.Sleep(50 * time.Millisecond)
+	}
+	t.Fatalf("timed out waiting for %d resources", minCount)
+}
 
 // TestRegisterCoachProxy_Unreachable verifies that an unreachable coach URL
 // causes graceful degradation (no error returned, platform continues).
@@ -73,6 +102,9 @@ func TestRegisterCoachProxy_ForwardsPrompts(t *testing.T) {
 	}
 	defer cs.Close()
 
+	// Background goroutine may still be registering — poll until prompts appear.
+	waitForPromptCount(t, cs, 1)
+
 	res, err := cs.ListPrompts(context.Background(), nil)
 	if err != nil {
 		t.Fatal(err)
@@ -123,6 +155,9 @@ func TestRegisterCoachProxy_ForwardsResources(t *testing.T) {
 		t.Fatal(err)
 	}
 	defer cs.Close()
+
+	// Background goroutine may still be registering — poll until resources appear.
+	waitForResourceCount(t, cs, 1)
 
 	res, err := cs.ListResources(context.Background(), nil)
 	if err != nil {
