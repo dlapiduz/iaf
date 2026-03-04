@@ -21,7 +21,7 @@ type AppStatusInput struct {
 func RegisterAppStatus(server *gomcp.Server, deps *Dependencies) {
 	gomcp.AddTool(server, &gomcp.Tool{
 		Name:        "app_status",
-		Description: "Check the current status of an application — phase (Pending/Building/Deploying/Running/Failed), URL, build progress, and replica count. Requires session_id from the register tool and the application name. Use this after push_code or deploy_app to monitor progress.",
+		Description: "Check the current status of an application — phase (Pending/Building/Deploying/Running/Failed), URL, build progress, and replica count. The response includes a \"pollIntervalSeconds\" field when the app is still building or deploying — you MUST wait that many seconds between polls. Do not call this tool in a tight loop; builds take ~2 minutes.",
 	}, func(ctx context.Context, req *gomcp.CallToolRequest, input AppStatusInput) (*gomcp.CallToolResult, any, error) {
 		namespace, err := deps.ResolveNamespace(input.SessionID)
 		if err != nil {
@@ -48,6 +48,14 @@ func RegisterAppStatus(server *gomcp.Server, deps *Dependencies) {
 			"availableReplicas": app.Status.AvailableReplicas,
 			"replicas":          app.Spec.Replicas,
 			"port":              app.Spec.Port,
+		}
+
+		// Provide a polling hint so agents don't busy-poll. Omitted once terminal.
+		switch app.Status.Phase {
+		case iafv1alpha1.ApplicationPhaseBuilding:
+			result["pollIntervalSeconds"] = 30
+		case iafv1alpha1.ApplicationPhaseDeploying:
+			result["pollIntervalSeconds"] = 15
 		}
 
 		// Add source info

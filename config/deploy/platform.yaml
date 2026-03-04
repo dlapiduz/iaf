@@ -103,6 +103,10 @@ spec:
               value: "/data/sources"
             - name: IAF_SOURCE_STORE_URL
               value: "http://iaf-apiserver.iaf-system.svc.cluster.local:8080"
+            - name: IAF_COACH_URL
+              value: "http://iaf-coach.iaf-system.svc.cluster.local:8082/mcp"
+            - name: IAF_COACH_TOKEN
+              value: "iaf-coach-dev-key"
           volumeMounts:
             - name: sources
               mountPath: /data/sources

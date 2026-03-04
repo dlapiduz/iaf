@@ -51,6 +51,12 @@ type Config struct {
 	// Observability (optional — features are disabled when URLs are empty)
 	// TempoURL is the Grafana base URL for trace explore links (IAF_TEMPO_URL).
 	TempoURL string `mapstructure:"tempo_url"`
+
+	// Coach server proxy (optional — coaching proxy is disabled when CoachURL is empty).
+	// IAF_COACH_URL:   Streamable-HTTP MCP endpoint of the coach server (e.g. http://coach.iaf-system/mcp).
+	// IAF_COACH_TOKEN: Bearer token for authenticating platform → coach requests. Mount from K8s Secret.
+	CoachURL   string `mapstructure:"coach_url"`
+	CoachToken string `mapstructure:"coach_token"`
 }
 
 // Load reads configuration from environment variables and defaults.
@@ -74,6 +80,8 @@ func Load() (*Config, error) {
 	v.SetDefault("tempo_url", "")
 	v.SetDefault("session_ttl", 0)
 	v.SetDefault("session_gc_interval", 0)
+	v.SetDefault("coach_url", "")
+	v.SetDefault("coach_token", "")
 
 	v.SetEnvPrefix("IAF")
 	v.SetEnvKeyReplacer(strings.NewReplacer(".", "_"))

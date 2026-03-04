@@ -78,6 +78,35 @@ func RegisterCodingGuide(server *gomcp.Server, deps *Dependencies) {
 			}
 		}
 
+		sb.WriteString("\n## IAF Platform Requirements\n")
+		sb.WriteString(`These rules are mandatory for all apps deployed on IAF:
+
+**1. Write code to disk first**
+Always write your source files to the local filesystem before calling push_code.
+Do not pass code as inline strings. Agents should create a project directory, write all files, then upload.
+
+**2. No in-memory state**
+IAF apps are ephemeral — pods restart and lose all in-memory data (arrays, maps, global variables).
+Use a persistent backing service instead:
+- Call ` + "`provision_service`" + ` to create a managed PostgreSQL database
+- Call ` + "`list_data_sources`" + ` to find pre-provisioned databases or APIs
+- Call ` + "`attach_data_source`" + ` / ` + "`bind_service`" + ` to inject credentials as env vars
+
+**3. 12-factor app principles**
+- Config from env vars only (never hardcoded)
+- Stateless processes — no local filesystem state between requests
+- Explicit dependency manifests (package.json, go.mod, requirements.txt, Gemfile)
+- Log to stdout in structured JSON (see logging-guide)
+
+**4. Version control**
+If ` + "`setup_github_repo`" + ` is available, create a repo and commit your code before deploying.
+This provides a history, enables collaboration, and makes rollbacks possible.
+
+**5. Authentication**
+Required on any route that modifies data or accesses sensitive information.
+Optional on read-only public endpoints — do not add unnecessary auth to health checks or public views.
+`)
+
 		sb.WriteString("\n## Full Standards Reference\n")
 		sb.WriteString("Read `iaf://org/coding-standards` for the machine-readable JSON version of these standards.\n")
 

@@ -1,0 +1,44 @@
+---
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  name: iaf-coach
+  namespace: iaf-system
+  labels:
+    app: iaf-coach
+spec:
+  replicas: 1
+  selector:
+    matchLabels:
+      app: iaf-coach
+  template:
+    metadata:
+      labels:
+        app: iaf-coach
+    spec:
+      containers:
+        - name: coachserver
+          image: iaf-platform:latest
+          imagePullPolicy: Never
+          command: ["/usr/local/bin/coachserver"]
+          ports:
+            - containerPort: 8082
+          env:
+            - name: COACH_API_TOKEN
+              value: "iaf-coach-dev-key"
+            - name: COACH_BASE_DOMAIN
+              value: "localhost"
+---
+apiVersion: v1
+kind: Service
+metadata:
+  name: iaf-coach
+  namespace: iaf-system
+spec:
+  selector:
+    app: iaf-coach
+  ports:
+    - name: http
+      port: 8082
+      targetPort: 8082
+  type: ClusterIP

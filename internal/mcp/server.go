@@ -8,7 +8,6 @@ import (
 	"github.com/dlapiduz/iaf/internal/mcp/prompts"
 	"github.com/dlapiduz/iaf/internal/mcp/resources"
 	"github.com/dlapiduz/iaf/internal/mcp/tools"
-	"github.com/dlapiduz/iaf/internal/orgstandards"
 	"github.com/dlapiduz/iaf/internal/sourcestore"
 	gomcp "github.com/modelcontextprotocol/go-sdk/mcp"
 	"k8s.io/client-go/kubernetes"
@@ -55,19 +54,25 @@ KEY DETAILS:
 - Default port is 8080 — your app must listen on this port
 - Your app will be available at http://<app-name>.<base-domain> once Running
 - Each session gets its own isolated Kubernetes namespace
-- Use app_status to monitor builds (typically ~2 minutes)
+- Use app_status to monitor builds — WAIT 30 seconds between each poll during Building, 15 seconds during Deploying. The response includes a "pollIntervalSeconds" field — always respect it. Builds typically take ~2 minutes; do not poll faster than the hint.
 - Use app_logs with build_logs=true to debug build failures
 
 CODING STANDARDS:
 - Read the coding-guide prompt for organisation coding standards before writing any code
-- Read iaf://org/coding-standards for the machine-readable standards document`
+- Read iaf://org/coding-standards for the machine-readable standards document
+
+IMPORTANT RULES (follow for every app):
+1. Write all code to disk before uploading — do not pass code as strings in memory, write actual files first
+2. Use version control if the setup_github_repo tool is available — commit code before deploying
+3. No in-memory storage (arrays, maps, global variables for data) — apps restart and lose state; use a managed database instead (provision_service for PostgreSQL, or attach a data source)
+4. Follow 12-factor app principles: config via env vars, stateless processes, explicit dependencies, stdout logging
+5. Authentication on admin/sensitive routes is encouraged but NOT required on read-only public endpoints`
 
 // NewServer creates and configures the MCP server with all tools.
-// If loader is non-nil, org standards are served from that loader; otherwise platform defaults are used.
 // ghClient may be nil — GitHub tools are omitted when it is not set.
 // If clientset is non-nil, app_logs will stream real logs from pods.
 // sessionTTL sets the idle TTL for new sessions (0 = no expiry).
-func NewServer(k8sClient client.Client, sessions *auth.SessionStore, store *sourcestore.Store, baseDomain string, loader *orgstandards.Loader, ghClient iafgithub.Client, ghOrg, ghToken string, tempoURL string, sessionTTL time.Duration, clientset ...kubernetes.Interface) *gomcp.Server {
+func NewServer(k8sClient client.Client, sessions *auth.SessionStore, store *sourcestore.Store, baseDomain string, ghClient iafgithub.Client, ghOrg, ghToken string, tempoURL string, sessionTTL time.Duration, clientset ...kubernetes.Interface) *gomcp.Server {
 	server := gomcp.NewServer(
 		&gomcp.Implementation{
 			Name:    "iaf",
@@ -79,16 +84,15 @@ func NewServer(k8sClient client.Client, sessions *auth.SessionStore, store *sour
 	)
 
 	deps := &tools.Dependencies{
-		Client:       k8sClient,
-		Store:        store,
-		BaseDomain:   baseDomain,
-		Sessions:     sessions,
-		OrgStandards: loader,
-		GitHub:       ghClient,
-		GitHubOrg:    ghOrg,
-		GitHubToken:  ghToken,
-		TempoURL:     tempoURL,
-		SessionTTL:   sessionTTL,
+		Client:      k8sClient,
+		Store:       store,
+		BaseDomain:  baseDomain,
+		Sessions:    sessions,
+		GitHub:      ghClient,
+		GitHubOrg:   ghOrg,
+		GitHubToken: ghToken,
+		TempoURL:    tempoURL,
+		SessionTTL:  sessionTTL,
 	}
 
 	tools.RegisterRegisterTool(server, deps)
@@ -117,23 +121,11 @@ func NewServer(k8sClient client.Client, sessions *auth.SessionStore, store *sour
 	tools.RegisterListServices(server, deps)
 
 	prompts.RegisterDeployGuide(server, deps)
-	prompts.RegisterLanguageGuide(server, deps)
-	prompts.RegisterCodingGuide(server, deps)
-	prompts.RegisterScaffoldGuide(server, deps)
 	prompts.RegisterServicesGuide(server, deps)
-	prompts.RegisterLoggingGuide(server, deps)
-	prompts.RegisterMetricsGuide(server, deps)
-	prompts.RegisterTracingGuide(server, deps)
 
 	resources.RegisterPlatformInfo(server, deps)
-	resources.RegisterLanguageResources(server, deps)
 	resources.RegisterApplicationSpec(server, deps)
-	resources.RegisterOrgStandards(server, deps)
-	resources.RegisterScaffoldResource(server, deps)
 	resources.RegisterDataCatalog(server, deps)
-	resources.RegisterLoggingStandards(server, deps)
-	resources.RegisterMetricsStandards(server, deps)
-	resources.RegisterTracingStandards(server, deps)
 
 	// GitHub components — registered only when a token and org are configured.
 	if deps.GitHub != nil {

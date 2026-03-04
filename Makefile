@@ -84,8 +84,10 @@ deploy-local: manifests
 	kubectl apply -f config/crd/bases/
 	kubectl apply -f config/rbac/
 	kubectl apply -f config/deploy/platform.yaml
+	kubectl apply -f config/deploy/coach.yaml
 	kubectl rollout restart deployment/iaf-controller -n iaf-system
 	kubectl rollout restart deployment/iaf-apiserver -n iaf-system
+	kubectl rollout restart deployment/iaf-coach -n iaf-system
 
 ##@ Misc
 

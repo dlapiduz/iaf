@@ -67,7 +67,7 @@ func setupHandlerTest(t *testing.T) *handlerTestEnv {
 // newSession creates a session and returns (sessionID, namespace).
 func (env *handlerTestEnv) newSession(t *testing.T, name string) (string, string) {
 	t.Helper()
-	sess, err := env.sessions.Register(name)
+	sess, err := env.sessions.Register(name, 0)
 	if err != nil {
 		t.Fatal(err)
 	}

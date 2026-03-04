@@ -14,7 +14,6 @@ import (
 	iafgithub "github.com/dlapiduz/iaf/internal/github"
 	"github.com/dlapiduz/iaf/internal/k8s"
 	iafmcp "github.com/dlapiduz/iaf/internal/mcp"
-	"github.com/dlapiduz/iaf/internal/orgstandards"
 	"github.com/dlapiduz/iaf/internal/sessiongc"
 	"github.com/dlapiduz/iaf/internal/sourcestore"
 	"github.com/labstack/echo/v4"
@@ -74,11 +73,8 @@ func main() {
 	// Mount source store file server
 	e.GET("/sources/*", echo.WrapHandler(http.StripPrefix("/sources/", store.Handler())))
 
-	// Create org standards loader (hot-reloads from IAF_ORG_STANDARDS_FILE)
 	ctx, cancel := context.WithCancel(context.Background())
 	defer cancel()
-	orgLoader := orgstandards.New(cfg.OrgStandardsFile, logger)
-	go orgLoader.Start(ctx)
 
 	// Start session GC if TTL and GC interval are configured.
 	if cfg.SessionTTL > 0 && cfg.SessionGCInterval > 0 {
@@ -94,7 +90,17 @@ func main() {
 	}
 
 	// Create MCP server and mount as Streamable HTTP endpoint
-	mcpServer := iafmcp.NewServer(k8sClient, sessions, store, cfg.BaseDomain, orgLoader, ghClient, cfg.GitHubOrg, cfg.GitHubToken, cfg.TempoURL, cfg.SessionTTL, clientset)
+	mcpServer := iafmcp.NewServer(k8sClient, sessions, store, cfg.BaseDomain, ghClient, cfg.GitHubOrg, cfg.GitHubToken, cfg.TempoURL, cfg.SessionTTL, clientset)
+
+	// If a coach URL is configured, enumerate coach prompts/resources and register
+	// forwarding closures on the platform server so agents see them transparently.
+	// Graceful degradation: unreachable coach is a warning, not a fatal startup error.
+	if cfg.CoachURL != "" {
+		if err := iafmcp.RegisterCoachProxy(ctx, mcpServer, cfg.CoachURL, cfg.CoachToken); err != nil {
+			logger.Warn("coach proxy registration failed", "error", err)
+		}
+	}
+
 	mcpHandler := gomcp.NewStreamableHTTPHandler(func(r *http.Request) *gomcp.Server {
 		return mcpServer
 	}, &gomcp.StreamableHTTPOptions{Stateless: true})
