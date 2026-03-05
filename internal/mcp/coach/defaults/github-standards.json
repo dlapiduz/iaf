@@ -1,0 +1,16 @@
+{
+  "defaultBranch": "main",
+  "branchNamingPattern": "^(feat|fix|chore|docs|test)/[a-z0-9][a-z0-9-]*$",
+  "requiredReviewers": {
+    "solo-agent": 0,
+    "multi-agent": 1,
+    "human-review": 1
+  },
+  "requiredStatusChecks": ["CI / ci"],
+  "commitMessageFormat": "Conventional Commits (https://www.conventionalcommits.org)",
+  "ciTemplate": ".github/workflows/ci.yml",
+  "iafIntegration": {
+    "deployBranch": "main",
+    "deployMethod": "git"
+  }
+}

@@ -221,18 +221,6 @@ func TestNewServer_WithGitHub_RegistersGitHubComponents(t *testing.T) {
 		t.Error("expected 'github-guide' prompt to be registered when GitHub is configured")
 	}
 
-	// github-standards resource should be present.
-	resourceRes, err := cs.ListResources(ctx, nil)
-	if err != nil {
-		t.Fatal(err)
-	}
-	resourceNames := map[string]bool{}
-	for _, r := range resourceRes.Resources {
-		resourceNames[r.Name] = true
-	}
-	if !resourceNames["github-standards"] {
-		t.Error("expected 'github-standards' resource to be registered when GitHub is configured")
-	}
 }
 
 func TestNewServer_WithoutGitHub_NoGitHubComponents(t *testing.T) {

@@ -130,7 +130,6 @@ func NewServer(k8sClient client.Client, sessions *auth.SessionStore, store *sour
 	// GitHub components — registered only when a token and org are configured.
 	if deps.GitHub != nil {
 		tools.RegisterSetupGithubRepo(server, deps)
-		resources.RegisterGitHubStandards(server, deps)
 		prompts.RegisterGitHubGuide(server, deps)
 	}
 

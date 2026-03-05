@@ -84,6 +84,7 @@ func RegisterGitHubGuide(server *gomcp.Server, deps *tools.Dependencies) {
 		sb.WriteString("- Read `iaf://org/github-standards` for the machine-readable standards document.\n")
 		sb.WriteString("- Update `.github/workflows/ci.yml` with language-specific lint, test, and build steps.\n")
 		sb.WriteString(fmt.Sprintf("- Once deployed, your app is at `http://<app-name>.%s`.\n", deps.BaseDomain))
+		sb.WriteString("\nFor CI/CD pipeline requirements: read the `cicd-guide` prompt and `iaf://org/cicd-standards`.\n")
 
 		return &gomcp.GetPromptResult{
 			Description: "GitHub workflow guide for IAF.",

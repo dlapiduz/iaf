@@ -63,16 +63,64 @@ func RegisterCodingGuide(server *gomcp.Server, deps *Dependencies) {
 			if langStd, ok := s.PerLanguage[canonical]; ok {
 				title := strings.ToUpper(canonical[:1]) + canonical[1:]
 				sb.WriteString(fmt.Sprintf("\n## %s-Specific Standards\n", title))
+
 				if len(langStd.Notes) > 0 {
 					sb.WriteString("\n### Notes\n")
 					for _, n := range langStd.Notes {
 						sb.WriteString(fmt.Sprintf("- %s\n", n))
 					}
 				}
+
+				if len(langStd.ApprovedFrameworks) > 0 {
+					sb.WriteString("\n### Approved Frameworks\n")
+					for _, f := range langStd.ApprovedFrameworks {
+						line := fmt.Sprintf("- **%s**", f.Name)
+						if f.MinVersion != "" {
+							line += fmt.Sprintf(" (>= %s)", f.MinVersion)
+						}
+						if f.Notes != "" {
+							line += fmt.Sprintf(" — %s", f.Notes)
+						}
+						sb.WriteString(line + "\n")
+					}
+				}
+
+				if len(langStd.ProhibitedFrameworks) > 0 {
+					sb.WriteString("\n### Prohibited Frameworks\n")
+					for _, f := range langStd.ProhibitedFrameworks {
+						line := fmt.Sprintf("- ~~%s~~", f.Name)
+						if f.Reason != "" {
+							line += fmt.Sprintf(" — %s", f.Reason)
+						}
+						sb.WriteString(line + "\n")
+					}
+				}
+
 				if len(langStd.ApprovedLibraries) > 0 {
 					sb.WriteString("\n### Approved Libraries\n")
-					for category, lib := range langStd.ApprovedLibraries {
-						sb.WriteString(fmt.Sprintf("- **%s**: %s\n", category, lib))
+					for _, lib := range langStd.ApprovedLibraries {
+						line := fmt.Sprintf("- **%s**", lib.Name)
+						if lib.MinVersion != "" {
+							line += fmt.Sprintf(" (>= %s)", lib.MinVersion)
+						}
+						if lib.Category != "" {
+							line += fmt.Sprintf(" [%s]", lib.Category)
+						}
+						if lib.Notes != "" {
+							line += fmt.Sprintf(" — %s", lib.Notes)
+						}
+						sb.WriteString(line + "\n")
+					}
+				}
+
+				if len(langStd.ProhibitedLibraries) > 0 {
+					sb.WriteString("\n### Prohibited Libraries\n")
+					for _, lib := range langStd.ProhibitedLibraries {
+						line := fmt.Sprintf("- ~~%s~~", lib.Name)
+						if lib.Reason != "" {
+							line += fmt.Sprintf(" — %s", lib.Reason)
+						}
+						sb.WriteString(line + "\n")
 					}
 				}
 			}
@@ -106,6 +154,16 @@ This provides a history, enables collaboration, and makes rollbacks possible.
 Required on any route that modifies data or accesses sensitive information.
 Optional on read-only public endpoints — do not add unnecessary auth to health checks or public views.
 `)
+
+		sb.WriteString("\n## Security\n")
+		sb.WriteString("Read `security-guide` (with optional `language` argument) for SQL injection prevention,\n")
+		sb.WriteString("secret handling, and OWASP Top 10 guidance specific to your stack.\n")
+		sb.WriteString("Read `iaf://org/security-standards` for the machine-readable security standard.\n")
+
+		sb.WriteString("\n## Open-Source License Policy\n")
+		sb.WriteString("Before adding any dependency, verify its SPDX license identifier is on the approved list.\n")
+		sb.WriteString("Read `license-guide` for the check-before-add workflow and approved/prohibited license list.\n")
+		sb.WriteString("Read `iaf://org/license-policy` for the machine-readable license policy.\n")
 
 		sb.WriteString("\n## Full Standards Reference\n")
 		sb.WriteString("Read `iaf://org/coding-standards` for the machine-readable JSON version of these standards.\n")

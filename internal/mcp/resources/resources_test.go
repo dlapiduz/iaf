@@ -6,7 +6,6 @@ import (
 	"strings"
 	"testing"
 
-	iafgithub "github.com/dlapiduz/iaf/internal/github"
 	"github.com/dlapiduz/iaf/internal/mcp/resources"
 	"github.com/dlapiduz/iaf/internal/mcp/tools"
 	gomcp "github.com/modelcontextprotocol/go-sdk/mcp"
@@ -24,24 +23,6 @@ func setupServer(t *testing.T) *gomcp.ClientSession {
 	resources.RegisterPlatformInfo(server, deps)
 	resources.RegisterApplicationSpec(server, deps)
 	resources.RegisterDataCatalog(server, deps)
-
-	return connectServer(t, ctx, server)
-}
-
-func setupGitHubResourceServer(t *testing.T) *gomcp.ClientSession {
-	t.Helper()
-	ctx := context.Background()
-
-	deps := &tools.Dependencies{
-		BaseDomain: "test.example.com",
-		GitHub:     &iafgithub.MockClient{},
-		GitHubOrg:  "test-org",
-	}
-
-	server := gomcp.NewServer(&gomcp.Implementation{Name: "test", Version: "0.0.1"}, nil)
-	resources.RegisterPlatformInfo(server, deps)
-	resources.RegisterApplicationSpec(server, deps)
-	resources.RegisterGitHubStandards(server, deps)
 
 	return connectServer(t, ctx, server)
 }
@@ -206,71 +187,3 @@ func TestListResources(t *testing.T) {
 	}
 }
 
-func TestGitHubStandards(t *testing.T) {
-	cs := setupGitHubResourceServer(t)
-	ctx := context.Background()
-
-	res, err := cs.ReadResource(ctx, &gomcp.ReadResourceParams{
-		URI: "iaf://org/github-standards",
-	})
-	if err != nil {
-		t.Fatal(err)
-	}
-
-	if len(res.Contents) != 1 {
-		t.Fatalf("expected 1 content, got %d", len(res.Contents))
-	}
-
-	content := res.Contents[0]
-	if content.MIMEType != "application/json" {
-		t.Errorf("expected MIME type 'application/json', got %q", content.MIMEType)
-	}
-
-	var standards map[string]any
-	if err := json.Unmarshal([]byte(content.Text), &standards); err != nil {
-		t.Fatalf("failed to parse github-standards JSON: %v", err)
-	}
-
-	for _, field := range []string{
-		"defaultBranch",
-		"branchNamingPattern",
-		"requiredReviewers",
-		"requiredStatusChecks",
-		"commitMessageFormat",
-		"ciTemplate",
-		"iafIntegration",
-	} {
-		if _, ok := standards[field]; !ok {
-			t.Errorf("expected field %q in github-standards", field)
-		}
-	}
-
-	if standards["defaultBranch"] != "main" {
-		t.Errorf("expected defaultBranch 'main', got %v", standards["defaultBranch"])
-	}
-
-	checks, ok := standards["requiredStatusChecks"].([]any)
-	if !ok || len(checks) == 0 {
-		t.Error("expected requiredStatusChecks to be a non-empty array")
-	} else if checks[0] != "CI / ci" {
-		t.Errorf("expected required status check 'CI / ci', got %v", checks[0])
-	}
-}
-
-func TestGitHubStandards_ListedInResources(t *testing.T) {
-	cs := setupGitHubResourceServer(t)
-	ctx := context.Background()
-
-	res, err := cs.ListResources(ctx, nil)
-	if err != nil {
-		t.Fatal(err)
-	}
-
-	names := map[string]bool{}
-	for _, r := range res.Resources {
-		names[r.Name] = true
-	}
-	if !names["github-standards"] {
-		t.Error("expected 'github-standards' resource to be listed when GitHub is configured")
-	}
-}
