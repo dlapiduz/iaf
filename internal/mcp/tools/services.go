@@ -327,9 +327,26 @@ func RegisterDeprovisionService(server *gomcp.Server, deps *Dependencies) {
 			return nil, nil, fmt.Errorf("getting service: %w", err)
 		}
 
-		// UX guard: check bound apps. The controller finalizer is the security boundary.
+		// UX guard: check bound apps. Filter out any apps that no longer exist (e.g.
+		// deleted before unbind_service was called) to avoid a permanent deadlock.
 		if len(svc.Status.BoundApps) > 0 {
-			return nil, nil, fmt.Errorf("service %q is still bound to applications %v — use unbind_service to remove all bindings before deprovisioning", input.Name, svc.Status.BoundApps)
+			var stillBound []string
+			for _, appName := range svc.Status.BoundApps {
+				var app iafv1alpha1.Application
+				err := deps.Client.Get(ctx, types.NamespacedName{Name: appName, Namespace: namespace}, &app)
+				if err == nil {
+					stillBound = append(stillBound, appName)
+				}
+				// app not found → stale entry, skip it
+			}
+			if len(stillBound) > 0 {
+				return nil, nil, fmt.Errorf("service %q is still bound to applications %v — use unbind_service to remove all bindings before deprovisioning", input.Name, stillBound)
+			}
+			// All bound apps are gone — clear the stale list so the controller can proceed.
+			svc.Status.BoundApps = nil
+			if err := deps.Client.Status().Update(ctx, &svc); err != nil {
+				return nil, nil, fmt.Errorf("clearing stale bound apps: %w", err)
+			}
 		}
 
 		if err := deps.Client.Delete(ctx, &svc); err != nil {

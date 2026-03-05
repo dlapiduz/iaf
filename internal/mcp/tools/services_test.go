@@ -637,6 +637,13 @@ func TestDeprovisionService_Blocked(t *testing.T) {
 	sid := regData["session_id"].(string)
 	ns := regData["namespace"].(string)
 
+	// Create the Application CR so the binding check sees it as truly bound.
+	app := &iafv1alpha1.Application{
+		ObjectMeta: metav1.ObjectMeta{Name: "myapp", Namespace: ns},
+		Spec:       iafv1alpha1.ApplicationSpec{Image: "nginx:latest", Port: 8080, Replicas: 1},
+	}
+	k8sClient.Create(ctx, app)
+
 	svc := &iafv1alpha1.ManagedService{
 		ObjectMeta: metav1.ObjectMeta{Name: "pgdb", Namespace: ns},
 		Spec:       iafv1alpha1.ManagedServiceSpec{Type: "postgres", Plan: "micro"},
@@ -712,5 +719,65 @@ func TestDeprovisionService_OK(t *testing.T) {
 	err = k8sClient.Get(ctx, types.NamespacedName{Name: "pgdb", Namespace: ns}, &check)
 	if err == nil {
 		t.Error("expected ManagedService to be deleted")
+	}
+}
+
+// TestDeprovisionService_StaleBinding verifies that deprovision_service succeeds when
+// BoundApps lists an app that no longer exists (deleted before unbind_service was called).
+func TestDeprovisionService_StaleBinding(t *testing.T) {
+	ctx := context.Background()
+
+	scheme := runtime.NewScheme()
+	_ = iafv1alpha1.AddToScheme(scheme)
+	_ = corev1.AddToScheme(scheme)
+	k8sClient := fake.NewClientBuilder().
+		WithScheme(scheme).
+		WithStatusSubresource(&iafv1alpha1.ManagedService{}).
+		Build()
+
+	store, _ := sourcestore.New(t.TempDir(), "http://localhost:8080", slog.Default())
+	sessions, _ := auth.NewSessionStore(filepath.Join(t.TempDir(), "sessions.json"))
+	deps := &tools.Dependencies{
+		Client:     k8sClient,
+		Store:      store,
+		BaseDomain: "test.example.com",
+		Sessions:   sessions,
+	}
+
+	server := gomcp.NewServer(&gomcp.Implementation{Name: "test", Version: "0.0.1"}, nil)
+	tools.RegisterRegisterTool(server, deps)
+	tools.RegisterDeprovisionService(server, deps)
+
+	st, ct := gomcp.NewInMemoryTransports()
+	server.Connect(ctx, st, nil)
+	cl := gomcp.NewClient(&gomcp.Implementation{Name: "tc", Version: "0.0.1"}, nil)
+	cs, _ := cl.Connect(ctx, ct, nil)
+	t.Cleanup(func() { cs.Close() })
+
+	regRes, _ := cs.CallTool(ctx, &gomcp.CallToolParams{
+		Name: "register", Arguments: map[string]any{"name": "a"},
+	})
+	var regData map[string]any
+	json.Unmarshal([]byte(regRes.Content[0].(*gomcp.TextContent).Text), &regData)
+	sid := regData["session_id"].(string)
+	ns := regData["namespace"].(string)
+
+	// Service has a BoundApps entry for "ghost-app" which does not exist as an Application CR.
+	svc := &iafv1alpha1.ManagedService{
+		ObjectMeta: metav1.ObjectMeta{Name: "pgdb", Namespace: ns},
+		Spec:       iafv1alpha1.ManagedServiceSpec{Type: "postgres", Plan: "micro"},
+		Status:     iafv1alpha1.ManagedServiceStatus{BoundApps: []string{"ghost-app"}},
+	}
+	k8sClient.Create(ctx, svc)
+	k8sClient.Status().Update(ctx, svc)
+
+	// Deprovision should succeed — "ghost-app" is gone, so the binding is stale.
+	res, err := cs.CallTool(ctx, &gomcp.CallToolParams{
+		Name:      "deprovision_service",
+		Arguments: map[string]any{"session_id": sid, "name": "pgdb"},
+	})
+	if err != nil || res.IsError {
+		t.Fatalf("expected deprovision_service to succeed with stale binding, got err=%v isError=%v text=%v",
+			err, res.IsError, res.Content)
 	}
 }
