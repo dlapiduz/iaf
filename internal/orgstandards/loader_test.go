@@ -54,8 +54,14 @@ perLanguage:
   go:
     notes:
       - "Use Go modules"
+    approvedFrameworks:
+      - name: gin
+        minVersion: "1.9"
+        notes: "Preferred HTTP router"
     approvedLibraries:
-      web: "echo"
+      - name: pgx
+        category: database
+        minVersion: "5.0"
 `
 	if err := os.WriteFile(path, []byte(content), 0o644); err != nil {
 		t.Fatal(err)
@@ -77,8 +83,63 @@ perLanguage:
 	if !ok {
 		t.Fatal("expected 'go' in PerLanguage")
 	}
-	if goStd.ApprovedLibraries["web"] != "echo" {
-		t.Errorf("expected approvedLibraries.web=echo, got %q", goStd.ApprovedLibraries["web"])
+	if len(goStd.ApprovedFrameworks) != 1 || goStd.ApprovedFrameworks[0].Name != "gin" {
+		t.Errorf("expected approvedFrameworks[0].name=gin, got %v", goStd.ApprovedFrameworks)
+	}
+	if len(goStd.ApprovedLibraries) != 1 || goStd.ApprovedLibraries[0].Name != "pgx" {
+		t.Errorf("expected approvedLibraries[0].name=pgx, got %v", goStd.ApprovedLibraries)
+	}
+}
+
+func TestLoader_VersionValidation(t *testing.T) {
+	dir := t.TempDir()
+	path := filepath.Join(dir, "standards.yaml")
+
+	// One valid entry, one with a shell-metacharacter version — the bad one should be dropped.
+	content := `
+perLanguage:
+  go:
+    approvedFrameworks:
+      - name: gin
+        minVersion: "1.9"
+      - name: evil
+        minVersion: "$(rm -rf /)"
+`
+	if err := os.WriteFile(path, []byte(content), 0o644); err != nil {
+		t.Fatal(err)
+	}
+
+	l := orgstandards.New(path, slog.Default())
+	s := l.Get()
+
+	goStd := s.PerLanguage["go"]
+	if len(goStd.ApprovedFrameworks) != 1 {
+		t.Fatalf("expected 1 approved framework after validation, got %d: %v", len(goStd.ApprovedFrameworks), goStd.ApprovedFrameworks)
+	}
+	if goStd.ApprovedFrameworks[0].Name != "gin" {
+		t.Errorf("expected 'gin' to survive version validation, got %q", goStd.ApprovedFrameworks[0].Name)
+	}
+}
+
+func TestLoader_DefaultsHaveFrameworks(t *testing.T) {
+	l := orgstandards.New("", slog.Default())
+	s := l.Get()
+
+	for _, lang := range []string{"go", "nodejs", "python", "java", "ruby"} {
+		std, ok := s.PerLanguage[lang]
+		if !ok {
+			t.Errorf("expected language %q in defaults", lang)
+			continue
+		}
+		if len(std.ApprovedFrameworks) == 0 {
+			t.Errorf("expected non-empty ApprovedFrameworks for %q", lang)
+		}
+	}
+
+	// Java should have prohibited frameworks.
+	javaStd := s.PerLanguage["java"]
+	if len(javaStd.ProhibitedFrameworks) == 0 {
+		t.Error("expected non-empty ProhibitedFrameworks for java")
 	}
 }
 

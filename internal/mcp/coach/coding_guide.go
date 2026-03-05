@@ -63,16 +63,64 @@ func RegisterCodingGuide(server *gomcp.Server, deps *Dependencies) {
 			if langStd, ok := s.PerLanguage[canonical]; ok {
 				title := strings.ToUpper(canonical[:1]) + canonical[1:]
 				sb.WriteString(fmt.Sprintf("\n## %s-Specific Standards\n", title))
+
 				if len(langStd.Notes) > 0 {
 					sb.WriteString("\n### Notes\n")
 					for _, n := range langStd.Notes {
 						sb.WriteString(fmt.Sprintf("- %s\n", n))
 					}
 				}
+
+				if len(langStd.ApprovedFrameworks) > 0 {
+					sb.WriteString("\n### Approved Frameworks\n")
+					for _, f := range langStd.ApprovedFrameworks {
+						line := fmt.Sprintf("- **%s**", f.Name)
+						if f.MinVersion != "" {
+							line += fmt.Sprintf(" (>= %s)", f.MinVersion)
+						}
+						if f.Notes != "" {
+							line += fmt.Sprintf(" — %s", f.Notes)
+						}
+						sb.WriteString(line + "\n")
+					}
+				}
+
+				if len(langStd.ProhibitedFrameworks) > 0 {
+					sb.WriteString("\n### Prohibited Frameworks\n")
+					for _, f := range langStd.ProhibitedFrameworks {
+						line := fmt.Sprintf("- ~~%s~~", f.Name)
+						if f.Reason != "" {
+							line += fmt.Sprintf(" — %s", f.Reason)
+						}
+						sb.WriteString(line + "\n")
+					}
+				}
+
 				if len(langStd.ApprovedLibraries) > 0 {
 					sb.WriteString("\n### Approved Libraries\n")
-					for category, lib := range langStd.ApprovedLibraries {
-						sb.WriteString(fmt.Sprintf("- **%s**: %s\n", category, lib))
+					for _, lib := range langStd.ApprovedLibraries {
+						line := fmt.Sprintf("- **%s**", lib.Name)
+						if lib.MinVersion != "" {
+							line += fmt.Sprintf(" (>= %s)", lib.MinVersion)
+						}
+						if lib.Category != "" {
+							line += fmt.Sprintf(" [%s]", lib.Category)
+						}
+						if lib.Notes != "" {
+							line += fmt.Sprintf(" — %s", lib.Notes)
+						}
+						sb.WriteString(line + "\n")
+					}
+				}
+
+				if len(langStd.ProhibitedLibraries) > 0 {
+					sb.WriteString("\n### Prohibited Libraries\n")
+					for _, lib := range langStd.ProhibitedLibraries {
+						line := fmt.Sprintf("- ~~%s~~", lib.Name)
+						if lib.Reason != "" {
+							line += fmt.Sprintf(" — %s", lib.Reason)
+						}
+						sb.WriteString(line + "\n")
 					}
 				}
 			}
